@@ -1,0 +1,34 @@
+# macOS cruft
+.DS_Store
+
+# IDE/editor settings
+.idea/
+.vscode/
+*.code-workspace
+
+# Node tooling
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build outputs
+build/
+dist/
+.sass-cache/
+*.map
+
+# Composer dependencies
+vendor/
+
+# Environment / credentials
+.env
+.env.*
+
+# Test artifacts
+coverage/
+
+# System files
+Thumbs.db
+
