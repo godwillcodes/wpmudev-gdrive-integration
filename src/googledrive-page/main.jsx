@@ -6,11 +6,87 @@ import "./scss/style.scss"
 
 const domElement = document.getElementById(window.wpmudevDriveTest.dom_element_id);
 
+/**
+ * Format file size in bytes to human-readable format.
+ *
+ * @param {number} bytes File size in bytes.
+ * @return {string} Formatted file size.
+ */
+const formatFileSize = (bytes) => {
+    if (!bytes || bytes === 0) {
+        return '-';
+    }
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
+};
+
+/**
+ * Get file type label from MIME type.
+ *
+ * @param {string} mimeType MIME type string.
+ * @return {string} Human-readable file type.
+ */
+const getFileTypeLabel = (mimeType) => {
+    if (!mimeType) {
+        return __('File', 'wpmudev-plugin-test');
+    }
+
+    // Google Drive special types
+    if (mimeType === 'application/vnd.google-apps.folder') {
+        return __('Folder', 'wpmudev-plugin-test');
+    }
+    if (mimeType === 'application/vnd.google-apps.document') {
+        return __('Google Doc', 'wpmudev-plugin-test');
+    }
+    if (mimeType === 'application/vnd.google-apps.spreadsheet') {
+        return __('Google Sheet', 'wpmudev-plugin-test');
+    }
+    if (mimeType === 'application/vnd.google-apps.presentation') {
+        return __('Google Slides', 'wpmudev-plugin-test');
+    }
+
+    // Common file types
+    const typeMap = {
+        'image/jpeg': __('Image', 'wpmudev-plugin-test'),
+        'image/png': __('Image', 'wpmudev-plugin-test'),
+        'image/gif': __('Image', 'wpmudev-plugin-test'),
+        'image/webp': __('Image', 'wpmudev-plugin-test'),
+        'application/pdf': __('PDF', 'wpmudev-plugin-test'),
+        'text/plain': __('Text', 'wpmudev-plugin-test'),
+        'application/zip': __('ZIP', 'wpmudev-plugin-test'),
+        'application/json': __('JSON', 'wpmudev-plugin-test'),
+    };
+
+    // Check for partial matches (e.g., "image/" for all images)
+    for (const [key, value] of Object.entries(typeMap)) {
+        if (mimeType.startsWith(key.split('/')[0] + '/')) {
+            return value;
+        }
+    }
+
+    // Return generic type based on main type
+    const mainType = mimeType.split('/')[0];
+    if (mainType === 'image') {
+        return __('Image', 'wpmudev-plugin-test');
+    }
+    if (mainType === 'video') {
+        return __('Video', 'wpmudev-plugin-test');
+    }
+    if (mainType === 'audio') {
+        return __('Audio', 'wpmudev-plugin-test');
+    }
+
+    return __('File', 'wpmudev-plugin-test');
+};
+
 const WPMUDEV_DriveTest = () => {
     const [isAuthenticated, setIsAuthenticated] = useState(window.wpmudevDriveTest.authStatus || false);
     const [hasCredentials, setHasCredentials] = useState(window.wpmudevDriveTest.hasCredentials || false);
     const [showCredentials, setShowCredentials] = useState(!window.wpmudevDriveTest.hasCredentials);
     const [isLoading, setIsLoading] = useState(false);
+    const [uploadProgress, setUploadProgress] = useState(0);
     const [files, setFiles] = useState([]);
     const [uploadFile, setUploadFile] = useState(null);
     const [folderName, setFolderName] = useState('');
@@ -162,17 +238,277 @@ const WPMUDEV_DriveTest = () => {
     };
 
     const loadFiles = async () => {
+        try {
+            setIsLoading(true);
+            const response = await fetch(
+                `${window.location.origin}/wp-json/${window.wpmudevDriveTest.restEndpointFiles}`,
+                {
+                    method: 'GET',
+                    headers: {
+                        'X-WP-Nonce': window.wpmudevDriveTest.nonce,
+                    },
+                }
+            );
 
+            const data = await response.json();
+
+            if (!response.ok) {
+                const errorMessage =
+                    data?.message ||
+                    data?.code ||
+                    __('Failed to load files. Please try again.', 'wpmudev-plugin-test');
+                showNotice(errorMessage, 'error');
+                return;
+            }
+
+            // Handle both array and WP_REST_Response format
+            const fileList = Array.isArray(data) ? data : (data?.data || []);
+            setFiles(fileList);
+        } catch (error) {
+            showNotice(
+                __('An unexpected error occurred while loading files.', 'wpmudev-plugin-test'),
+                'error'
+            );
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     const handleUpload = async () => {
+        if (!uploadFile) {
+            showNotice(
+                __('Please select a file to upload.', 'wpmudev-plugin-test'),
+                'error'
+            );
+            return;
+        }
+
+        setIsLoading(true);
+        setUploadProgress(0);
+
+        return new Promise((resolve, reject) => {
+            const formData = new FormData();
+            formData.append('file', uploadFile);
+
+            const xhr = new XMLHttpRequest();
+
+            // Track upload progress
+            xhr.upload.addEventListener('progress', (e) => {
+                if (e.lengthComputable) {
+                    const percentComplete = Math.round((e.loaded / e.total) * 100);
+                    setUploadProgress(percentComplete);
+                }
+            });
+
+            // Handle completion
+            xhr.addEventListener('load', async () => {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    try {
+                        const data = JSON.parse(xhr.responseText);
+
+                        if (!data?.success) {
+                            const errorMessage =
+                                data?.message ||
+                                data?.code ||
+                                __('Failed to upload file. Please try again.', 'wpmudev-plugin-test');
+                            showNotice(errorMessage, 'error');
+                            setIsLoading(false);
+                            setUploadProgress(0);
+                            reject(new Error(errorMessage));
+                            return;
+                        }
+
+                        // Clear file input
+                        setUploadFile(null);
+                        // Reset file input element
+                        const fileInput = document.querySelector('.drive-file-input');
+                        if (fileInput) {
+                            fileInput.value = '';
+                        }
+
+                        showNotice(
+                            __('File uploaded successfully!', 'wpmudev-plugin-test'),
+                            'success'
+                        );
+
+                        // Automatically refresh file list
+                        await loadFiles();
+                        setIsLoading(false);
+                        setUploadProgress(0);
+                        resolve(data);
+                    } catch (error) {
+                        showNotice(
+                            __('Failed to parse server response.', 'wpmudev-plugin-test'),
+                            'error'
+                        );
+                        setIsLoading(false);
+                        setUploadProgress(0);
+                        reject(error);
+                    }
+                } else {
+                    let errorMessage = __('Failed to upload file. Please try again.', 'wpmudev-plugin-test');
+                    try {
+                        const data = JSON.parse(xhr.responseText);
+                        errorMessage = data?.message || data?.code || errorMessage;
+                    } catch (e) {
+                        // Use default error message
+                    }
+                    showNotice(errorMessage, 'error');
+                    setIsLoading(false);
+                    setUploadProgress(0);
+                    reject(new Error(errorMessage));
+                }
+            });
+
+            // Handle errors
+            xhr.addEventListener('error', () => {
+                showNotice(
+                    __('An unexpected error occurred while uploading the file.', 'wpmudev-plugin-test'),
+                    'error'
+                );
+                setIsLoading(false);
+                setUploadProgress(0);
+                reject(new Error('Network error'));
+            });
+
+            xhr.addEventListener('abort', () => {
+                showNotice(
+                    __('Upload was cancelled.', 'wpmudev-plugin-test'),
+                    'error'
+                );
+                setIsLoading(false);
+                setUploadProgress(0);
+                reject(new Error('Upload cancelled'));
+            });
+
+            // Open and send request
+            xhr.open('POST', `${window.location.origin}/wp-json/${window.wpmudevDriveTest.restEndpointUpload}`);
+            xhr.setRequestHeader('X-WP-Nonce', window.wpmudevDriveTest.nonce);
+            xhr.send(formData);
+        });
     };
 
     const handleDownload = async (fileId, fileName) => {
+        if (!fileId) {
+            showNotice(
+                __('File ID is missing. Cannot download file.', 'wpmudev-plugin-test'),
+                'error'
+            );
+            return;
+        }
+
+        try {
+            setIsLoading(true);
+            const response = await fetch(
+                `${window.location.origin}/wp-json/${window.wpmudevDriveTest.restEndpointDownload}?file_id=${encodeURIComponent(fileId)}`,
+                {
+                    method: 'GET',
+                    headers: {
+                        'X-WP-Nonce': window.wpmudevDriveTest.nonce,
+                    },
+                }
+            );
+
+            const data = await response.json();
+
+            if (!response.ok || !data?.success) {
+                const errorMessage =
+                    data?.message ||
+                    data?.code ||
+                    __('Failed to download file. Please try again.', 'wpmudev-plugin-test');
+                showNotice(errorMessage, 'error');
+                return;
+            }
+
+            // Decode base64 content and create download
+            const content = atob(data.content);
+            const blob = new Blob([content], { type: data.mimeType || 'application/octet-stream' });
+            const url = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = fileName || data.filename || 'download';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(url);
+
+            showNotice(
+                __('File downloaded successfully!', 'wpmudev-plugin-test'),
+                'success'
+            );
+        } catch (error) {
+            showNotice(
+                __('An unexpected error occurred while downloading the file.', 'wpmudev-plugin-test'),
+                'error'
+            );
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     const handleCreateFolder = async () => {
+        const trimmedName = folderName.trim();
+        if (!trimmedName) {
+            showNotice(
+                __('Please enter a folder name.', 'wpmudev-plugin-test'),
+                'error'
+            );
+            return;
+        }
+
+        try {
+            setIsLoading(true);
+            const response = await fetch(
+                `${window.location.origin}/wp-json/${window.wpmudevDriveTest.restEndpointCreate}`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-WP-Nonce': window.wpmudevDriveTest.nonce,
+                    },
+                    body: JSON.stringify({
+                        name: trimmedName,
+                    }),
+                }
+            );
+
+            const data = await response.json();
+
+            if (!response.ok || !data?.success) {
+                const errorMessage =
+                    data?.message ||
+                    data?.code ||
+                    __('Failed to create folder. Please try again.', 'wpmudev-plugin-test');
+                showNotice(errorMessage, 'error');
+                return;
+            }
+
+            // Clear folder name input
+            setFolderName('');
+            showNotice(
+                __('Folder created successfully!', 'wpmudev-plugin-test'),
+                'success'
+            );
+
+            // Automatically refresh file list
+            await loadFiles();
+        } catch (error) {
+            showNotice(
+                __('An unexpected error occurred while creating the folder.', 'wpmudev-plugin-test'),
+                'error'
+            );
+        } finally {
+            setIsLoading(false);
+        }
     };
+
+    // Load files when authenticated
+    useEffect(() => {
+        if (isAuthenticated) {
+            loadFiles();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isAuthenticated]); // Only run when authentication status changes
 
     return (
         <>
@@ -357,18 +693,44 @@ const WPMUDEV_DriveTest = () => {
                             </h2>
                         </div>
                         <div className="sui-box-body">
-                            <div className="sui-box-settings-row">
-                                <input
-                                    type="file"
-                                    onChange={(e) => setUploadFile(e.target.files[0])}
-                                    className="drive-file-input"
-                                />
-                                {uploadFile && (
-                                    <p>
-                                        <strong>{__('Selected:', 'wpmudev-plugin-test')}</strong>{' '}
-                                        {uploadFile.name} ({Math.round(uploadFile.size / 1024)} KB)
-                                    </p>
-                                )}
+                            <div className="sui-box-settings-row wpmudev-drive-upload-row">
+                                <div className="wpmudev-drive-file-input-wrapper">
+                                    <label className="wpmudev-drive-file-label">
+                                        <input
+                                            type="file"
+                                            onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
+                                            className="drive-file-input"
+                                            disabled={isLoading}
+                                        />
+                                        <span className="wpmudev-drive-file-label-text">
+                                            {uploadFile
+                                                ? __('Change File', 'wpmudev-plugin-test')
+                                                : __('Choose File', 'wpmudev-plugin-test')}
+                                        </span>
+                                    </label>
+                                    {uploadFile && (
+                                        <div className="wpmudev-drive-file-info">
+                                            <strong>{__('Selected:', 'wpmudev-plugin-test')}</strong>{' '}
+                                            <span className="wpmudev-drive-file-name">{uploadFile.name}</span>
+                                            <span className="wpmudev-drive-file-size">
+                                                ({formatFileSize(uploadFile.size)})
+                                            </span>
+                                        </div>
+                                    )}
+                                    {isLoading && uploadProgress > 0 && (
+                                        <div className="wpmudev-drive-upload-progress">
+                                            <div className="wpmudev-drive-progress-bar-wrapper">
+                                                <div
+                                                    className="wpmudev-drive-progress-bar"
+                                                    style={{ width: `${uploadProgress}%` }}
+                                                />
+                                            </div>
+                                            <div className="wpmudev-drive-progress-text">
+                                                {__('Uploading:', 'wpmudev-plugin-test')} {uploadProgress}%
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         </div>
                         <div className="sui-box-footer">
@@ -378,7 +740,14 @@ const WPMUDEV_DriveTest = () => {
                                     onClick={handleUpload}
                                     disabled={isLoading || !uploadFile}
                                 >
-                                    {isLoading ? <Spinner /> : __('Upload to Drive', 'wpmudev-plugin-test')}
+                                    {isLoading ? (
+                                        <>
+                                            <Spinner />
+                                            {uploadProgress > 0 ? `${uploadProgress}%` : __('Uploading...', 'wpmudev-plugin-test')}
+                                        </>
+                                    ) : (
+                                        __('Upload to Drive', 'wpmudev-plugin-test')
+                                    )}
                                 </Button>
                             </div>
                         </div>
@@ -437,31 +806,76 @@ const WPMUDEV_DriveTest = () => {
                                     <p>{__('Loading files…', 'wpmudev-plugin-test')}</p>
                                 </div>
                             ) : files.length > 0 ? (
-                                <div className="drive-files-grid">
-                                    {files.map((file) => (
-                                        <div key={file.id} className="drive-file-item">
-                                            <div className="file-info">
-                                                <strong>{file.name}</strong>
-                                                <small>
-                                                    {file.modifiedTime
-                                                        ? new Date(file.modifiedTime).toLocaleDateString()
-                                                        : __('Unknown date', 'wpmudev-plugin-test')}
-                                                </small>
-                                            </div>
-                                            <div className="file-actions">
-                                                {file.webViewLink && (
-                                                    <Button
-                                                        variant="link"
-                                                        size="small"
-                                                        href={file.webViewLink}
-                                                        target="_blank"
-                                                    >
-                                                        {__('View in Drive', 'wpmudev-plugin-test')}
-                                                    </Button>
-                                                )}
-                                            </div>
-                                        </div>
-                                    ))}
+                                <div className="wpmudev-drive-files-table">
+                                    <table className="sui-table">
+                                        <thead>
+                                            <tr>
+                                                <th>{__('Name', 'wpmudev-plugin-test')}</th>
+                                                <th>{__('Type', 'wpmudev-plugin-test')}</th>
+                                                <th>{__('Size', 'wpmudev-plugin-test')}</th>
+                                                <th>{__('Modified', 'wpmudev-plugin-test')}</th>
+                                                <th>{__('Actions', 'wpmudev-plugin-test')}</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {files.map((file) => {
+                                                const isFolder = file.mimeType === 'application/vnd.google-apps.folder';
+                                                const fileSize = file.size ? formatFileSize(file.size) : '-';
+                                                const modifiedDate = file.modifiedTime
+                                                    ? new Date(file.modifiedTime).toLocaleString()
+                                                    : __('Unknown', 'wpmudev-plugin-test');
+                                                const fileType = isFolder
+                                                    ? __('Folder', 'wpmudev-plugin-test')
+                                                    : getFileTypeLabel(file.mimeType);
+
+                                                return (
+                                                    <tr key={file.id} className="wpmudev-drive-file-row">
+                                                        <td className="wpmudev-drive-file-name">
+                                                            <strong>{file.name}</strong>
+                                                        </td>
+                                                        <td className="wpmudev-drive-file-type">
+                                                            <span className={`wpmudev-drive-type-badge ${isFolder ? 'folder' : 'file'}`}>
+                                                                {fileType}
+                                                            </span>
+                                                        </td>
+                                                        <td className="wpmudev-drive-file-size">
+                                                            {fileSize}
+                                                        </td>
+                                                        <td className="wpmudev-drive-file-date">
+                                                            {modifiedDate}
+                                                        </td>
+                                                        <td className="wpmudev-drive-file-actions">
+                                                            <div className="wpmudev-drive-actions-group">
+                                                                {!isFolder && (
+                                                                    <Button
+                                                                        variant="link"
+                                                                        size="small"
+                                                                        onClick={() => handleDownload(file.id, file.name)}
+                                                                        disabled={isLoading}
+                                                                        className="wpmudev-drive-action-btn"
+                                                                    >
+                                                                        {__('Download', 'wpmudev-plugin-test')}
+                                                                    </Button>
+                                                                )}
+                                                                {file.webViewLink && (
+                                                                    <Button
+                                                                        variant="link"
+                                                                        size="small"
+                                                                        href={file.webViewLink}
+                                                                        target="_blank"
+                                                                        rel="noopener noreferrer"
+                                                                        className="wpmudev-drive-action-btn"
+                                                                    >
+                                                                        {__('View in Drive', 'wpmudev-plugin-test')}
+                                                                    </Button>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
                                 </div>
                             ) : (
                                 <div className="sui-box-settings-row">

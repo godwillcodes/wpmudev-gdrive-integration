@@ -197,6 +197,113 @@ Once authenticated, implement these sections:
 - Include "View in Drive" link for all items
 - Implement proper loading states
 
+##### Answer – File Operations Interface Implementation
+
+- **Upload File to Drive:**
+  - **File Selection (`handleUpload()` function):**
+    - Custom-styled file input with "Choose File" button using Forminator colors (#17a8e3).
+    - File validation: Checks if file is selected before upload.
+    - Displays selected file information (name and formatted size) in a styled info box.
+    - File input is disabled during upload to prevent multiple simultaneous uploads.
+  - **Upload Process:**
+    - Uses `XMLHttpRequest` (instead of `fetch`) to enable real-time upload progress tracking.
+    - Uses `FormData` to send file via `POST` request to `/wp-json/wpmudev/v1/drive/upload`.
+    - Includes proper nonce authentication in request headers.
+    - **Upload Progress Indication:**
+      - Real-time progress tracking with percentage (0-100%).
+      - Visual progress bar with Forminator color scheme (#17a8e3 gradient).
+      - Animated progress bar with shine effect for better visual feedback.
+      - Progress percentage displayed both in progress bar section and upload button.
+      - Progress bar updates smoothly as file uploads.
+    - Loading state with spinner and disabled button during upload.
+    - Comprehensive error handling for network errors, API errors, validation failures, and upload cancellation.
+  - **User Feedback:**
+    - Success notice displayed on successful upload with translated message.
+    - Error notices for all failure scenarios with specific, actionable messages.
+    - File input automatically cleared after successful upload.
+    - Automatic file list refresh after successful upload (calls `loadFiles()`).
+  - **UI/UX:**
+    - Professional file input wrapper with hover effects matching Forminator design.
+    - File info display with formatted size (Bytes, KB, MB, GB, TB).
+    - Responsive design for mobile devices.
+
+- **Create New Folder:**
+  - **Folder Creation (`handleCreateFolder()` function):**
+    - Text input with `TextControl` component for folder name.
+    - Client-side validation: Checks if folder name is not empty (trimmed).
+    - Button disabled when input is empty or during loading.
+    - Input automatically cleared after successful creation.
+  - **API Integration:**
+    - `POST` request to `/wp-json/wpmudev/v1/drive/create-folder` with folder name.
+    - Includes proper nonce authentication.
+    - Comprehensive error handling for all failure scenarios.
+  - **User Feedback:**
+    - Success notice displayed on successful folder creation.
+    - Error notices for validation failures and API errors.
+    - Automatic file list refresh after successful creation (calls `loadFiles()`).
+  - **UI/UX:**
+    - Consistent styling with other form inputs.
+    - Loading state with spinner during folder creation.
+    - Professional button styling matching Forminator design system.
+
+- **Your Drive Files:**
+  - **File Listing (`loadFiles()` function):**
+    - Fetches files from `/wp-json/wpmudev/v1/drive/files` endpoint on component mount (when authenticated).
+    - Automatically refreshes after successful upload or folder creation.
+    - Manual refresh button in header for on-demand updates.
+    - Handles both array and `WP_REST_Response` response formats.
+    - Comprehensive error handling with user-friendly messages.
+  - **File Display:**
+    - **Professional Table Layout:**
+      - Clean, organized table with headers: Name, Type, Size, Modified, Actions.
+      - Hover effects on table rows for better UX.
+      - Responsive design with mobile-friendly adjustments.
+    - **File Information:**
+      - **Name:** Displayed in bold with proper font weight.
+      - **Type:** Color-coded badges (blue for folders, gray for files) with uppercase labels.
+        - Special handling for Google Drive types (Google Doc, Google Sheet, Google Slides).
+        - Generic type detection based on MIME type (Image, Video, Audio, PDF, etc.).
+      - **Size:** Human-readable format (Bytes, KB, MB, GB, TB) using `formatFileSize()` helper.
+        - Displays "-" for folders or files without size information.
+      - **Modified Date:** Formatted using `toLocaleString()` for readable date/time display.
+    - **Actions:**
+      - **Download Button:** Only shown for files (not folders).
+        - Calls `handleDownload()` function with file ID and name.
+        - Downloads file as base64-encoded content, converts to Blob, and triggers browser download.
+        - Includes proper error handling and success notifications.
+      - **View in Drive Link:** Shown for all items with `webViewLink`.
+        - Opens in new tab with `target="_blank"` and `rel="noopener noreferrer"` for security.
+        - Styled as link button matching Forminator design.
+    - **Loading States:**
+      - Spinner with "Loading files…" message during file fetch.
+      - Disabled refresh button during loading.
+      - Empty state message when no files are found.
+  - **Helper Functions:**
+    - `formatFileSize()`: Converts bytes to human-readable format (Bytes, KB, MB, GB, TB).
+    - `getFileTypeLabel()`: Converts MIME types to user-friendly labels with special handling for Google Drive types.
+
+- **Error Handling & Notifications:**
+  - All operations include comprehensive error handling.
+  - User-friendly, translatable error messages using WordPress i18n functions.
+  - Success/error notices displayed via the notice system (already styled with Forminator colors).
+  - Network errors, API errors, and validation errors all properly caught and displayed.
+
+- **UI/UX Enhancements:**
+  - **Forminator Color Scheme:**
+    - Primary color (#17a8e3) used for buttons, links, and accents.
+    - Consistent border colors (#dde2e7, #e5e7eb) and background colors (#f8f9fa).
+    - Professional typography with proper font weights and sizes.
+  - **Perfect Alignment:**
+    - Table columns properly aligned with consistent padding.
+    - Action buttons grouped with proper spacing.
+    - File input wrapper with flexbox layout for perfect alignment.
+    - Responsive design ensures proper alignment on all screen sizes.
+  - **Professional Styling:**
+    - Hover effects on interactive elements.
+    - Smooth transitions for all state changes.
+    - Consistent spacing and padding throughout.
+    - Professional file type badges with rounded corners and color coding.
+
 ---
 
 ## 3. Backend: Credentials Storage Endpoint
