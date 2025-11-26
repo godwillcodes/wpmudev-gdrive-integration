@@ -7,8 +7,8 @@
 		"test": "tests"
 	},
 	"scripts": {
-		"watch": "clear && webpack --watch --mode development",
-		"compile": "clear && webpack --progress --mode production",
+		"watch": "clear && ./node_modules/.bin/webpack --watch --mode development",
+		"compile": "clear && ./node_modules/.bin/webpack --progress --mode production",
 		"translate": "wp i18n make-pot ./ languages/wpmudev-plugin-test.pot --exclude=builds/,node_modules/,src,builds --ignore-domain --allow-root",
 		"build": "clear && ./node_modules/.bin/grunt preBuildClean && npm run compile && npm run translate && ./node_modules/.bin/grunt build && ./node_modules/.bin/grunt finish"
 	},
