@@ -1,6 +1,12 @@
 module.exports = function (grunt) {
 	require('load-grunt-tasks')(grunt)
 
+	const pkg = grunt.file.readJSON('package.json')
+	const paths = {
+		releaseDir: `build/${pkg.name}`,
+		archive: `./build/${pkg.name}-${pkg.version}.zip`,
+	}
+
 	const copyFiles = [
 		'app/**',
 		'core/**',
@@ -12,6 +18,7 @@ module.exports = function (grunt) {
 		'QUESTIONS.md',
 		'README.md',
 		'composer.json',
+		'composer.lock',
 		'package.json',
 		'Gruntfile.js',
 		'gulpfile.js',
@@ -22,16 +29,13 @@ module.exports = function (grunt) {
 		'tests/**',
 	]
 
-    const excludeCopyFilesPro = copyFiles
+	const excludeCopyFilesPro = copyFiles
 		.slice(0)
-		.concat([
-			'changelog.txt',
-		])
-
-	const changelog = grunt.file.read('.changelog')
+		.concat(['changelog.txt'])
 
 	grunt.initConfig({
-		pkg: grunt.file.readJSON('package.json'),
+		pkg,
+		paths,
 
 		// Clean temp folders and release copies.
 		clean: {
@@ -77,8 +81,15 @@ module.exports = function (grunt) {
 
 		copy: {
 			pro: {
-				src: excludeCopyFilesPro,
-				dest: 'build/<%= pkg.name %>/',
+				files: [
+					{
+						expand: true,
+						dot: true,
+						cwd: '.',
+						src: excludeCopyFilesPro,
+						dest: '<%= paths.releaseDir %>/',
+					},
+				],
 			},
 		},
 
@@ -86,15 +97,14 @@ module.exports = function (grunt) {
 			pro: {
 				options: {
 					mode: 'zip',
-					archive: './build/<%= pkg.name %>-<%= pkg.version %>.zip',
+					archive: '<%= paths.archive %>',
 				},
 				expand: true,
-				cwd: 'build/<%= pkg.name %>/',
+				cwd: '<%= paths.releaseDir %>/',
 				src: ['**/*'],
 				dest: '<%= pkg.name %>/',
 			},
 		},
-
 	})
 
 	grunt.loadNpmTasks('grunt-search')
@@ -108,9 +118,46 @@ module.exports = function (grunt) {
 		grunt.log.writeln('----------')
 	})
 
+	grunt.registerTask('composer:install', 'Install production composer dependencies', function () {
+		const done = this.async()
+		const releaseDir = grunt.template.process('<%= paths.releaseDir %>')
+
+		grunt.log.writeln('Installing Composer dependencies inside ' + releaseDir)
+
+		grunt.util.spawn(
+			{
+				cmd: 'composer',
+				args: [
+					'install',
+					'--no-dev',
+					'--prefer-dist',
+					'--optimize-autoloader',
+					'--no-interaction',
+					'--no-progress',
+				],
+				opts: { cwd: releaseDir },
+			},
+			function (error, result) {
+				if (result && result.stdout) {
+					grunt.log.writeln(result.stdout)
+				}
+				if (result && result.stderr) {
+					grunt.log.error(result.stderr)
+				}
+
+				if (error) {
+					grunt.fail.warn('Composer install failed')
+					return done(false)
+				}
+				return done()
+			}
+		)
+	})
+
 	grunt.registerTask('build', [
 		'checktextdomain',
 		'copy:pro',
+		'composer:install',
 		'compress:pro',
 	])
 
