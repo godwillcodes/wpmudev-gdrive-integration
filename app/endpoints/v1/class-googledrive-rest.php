@@ -72,14 +72,38 @@ class Drive_API extends Base {
 	 */
 	private function setup_google_client() {
 		$auth_creds = get_option( 'wpmudev_plugin_tests_auth', array() );
-		
+
 		if ( empty( $auth_creds['client_id'] ) || empty( $auth_creds['client_secret'] ) ) {
 			return;
 		}
 
+		$decrypted_secret = $this->decrypt_secret( $auth_creds['client_secret'] );
+		
+		// Validate that decryption succeeded and secret is usable.
+		if ( '' === $decrypted_secret ) {
+			// Decryption failed or returned empty string.
+			if ( function_exists( 'error_log' ) ) {
+				$was_encrypted = $this->is_encrypted( $auth_creds['client_secret'] );
+				if ( $was_encrypted ) {
+					error_log( 'WPMUDEV Drive: Failed to decrypt client secret. Decryption returned empty string. Google Drive authentication will fail.' );
+				} else {
+					error_log( 'WPMUDEV Drive: Client secret is empty. Google Drive authentication will fail.' );
+				}
+			}
+			return; // Do not set up client with invalid secret.
+		}
+		
+		// Check if decryption failed (still encrypted) - indicates OpenSSL unavailable.
+		if ( $this->is_encrypted( $decrypted_secret ) ) {
+			if ( function_exists( 'error_log' ) ) {
+				error_log( 'WPMUDEV Drive: Cannot decrypt client secret - OpenSSL extension is required but not available. Google Drive authentication will fail.' );
+			}
+			return; // Do not set up client with encrypted value (will cause authentication failure).
+		}
+
 		$this->client = new Google_Client();
 		$this->client->setClientId( $auth_creds['client_id'] );
-		$this->client->setClientSecret( $auth_creds['client_secret'] );
+		$this->client->setClientSecret( $decrypted_secret );
 		$this->client->setRedirectUri( $this->redirect_uri );
 		$this->client->setScopes( $this->scopes );
 		$this->client->setAccessType( 'offline' );
@@ -98,11 +122,30 @@ class Drive_API extends Base {
 	 * Register REST API routes.
 	 */
 	public function register_routes() {
-		// Save credentials endpoint
-		register_rest_route( 'wpmudev/v1/drive', '/save-credentials', array(
-			'methods'             => 'POST',
-			'callback'            => array( $this, 'save_credentials' ),
-		) );
+		// Save credentials endpoint.
+		register_rest_route(
+			'wpmudev/v1/drive',
+			'/save-credentials',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( $this, 'save_credentials' ),
+				'permission_callback' => function () {
+					return current_user_can( 'manage_options' );
+				},
+				'args'                => array(
+					'client_id'     => array(
+						'type'              => 'string',
+						'required'          => true,
+						'sanitize_callback' => 'sanitize_text_field',
+					),
+					'client_secret' => array(
+						'type'              => 'string',
+						'required'          => true,
+						'sanitize_callback' => 'sanitize_text_field',
+					),
+				),
+			)
+		);
 
 		// Authentication endpoint
 		register_rest_route( 'wpmudev/v1/drive', '/auth', array(
@@ -143,24 +186,142 @@ class Drive_API extends Base {
 
 	/**
 	 * Save Google OAuth credentials.
+	 *
+	 * @param WP_REST_Request $request Request instance.
+	 *
+	 * @return WP_REST_Response|WP_Error
 	 */
-	public function save_credentials() {
-		$client_id     = '';
-		$client_secret = '';
+	public function save_credentials( WP_REST_Request $request ) {
+		$client_id     = trim( (string) $request->get_param( 'client_id' ) );
+		$client_secret = trim( (string) $request->get_param( 'client_secret' ) );
 
+		if ( '' === $client_id || '' === $client_secret ) {
+			return new WP_Error(
+				'invalid_credentials',
+				__( 'Both Client ID and Client Secret are required.', 'wpmudev-plugin-test' ),
+				array( 'status' => 400 )
+			);
+		}
 
-		// Save credentials
 		$credentials = array(
 			'client_id'     => $client_id,
-			'client_secret' => $client_secret,
+			'client_secret' => $this->encrypt_secret( $client_secret ),
 		);
 
 		update_option( 'wpmudev_plugin_tests_auth', $credentials );
-		
-		// Reinitialize Google Client with new credentials
+
+		// Reinitialize Google Client with new credentials.
 		$this->setup_google_client();
 
-		return true;
+		return new WP_REST_Response(
+			array(
+				'success' => true,
+				'data'    => array(
+					'hasCredentials' => true,
+				),
+			)
+		);
+	}
+
+	/**
+	 * Encrypt a sensitive value (best-effort, reversible).
+	 *
+	 * @param string $secret Plain client secret.
+	 *
+	 * @return string Encrypted (with prefix) or original value on failure.
+	 */
+	private function encrypt_secret( string $secret ): string {
+		if ( '' === $secret ) {
+			return '';
+		}
+
+		// If already encrypted (has our marker), return as-is.
+		if ( $this->is_encrypted( $secret ) ) {
+			return $secret;
+		}
+
+		if ( ! function_exists( 'openssl_encrypt' ) ) {
+			return $secret;
+		}
+
+		// Convert hex key to binary (SHA-256 produces 64 hex chars = 32 bytes).
+		$key_hex = hash( 'sha256', wp_salt( 'secure_auth' ) );
+		$key     = hex2bin( $key_hex );
+		
+		// IV must be 16 bytes for AES-CBC (32 hex characters = 16 bytes).
+		$iv_hex = hash( 'sha256', wp_salt( 'auth' ) );
+		$iv     = hex2bin( substr( $iv_hex, 0, 32 ) );
+
+		$cipher = openssl_encrypt( $secret, 'aes-256-cbc', $key, 0, $iv );
+
+		if ( false === $cipher ) {
+			return $secret;
+		}
+
+		// Prefix encrypted data with marker to distinguish from plaintext.
+		return 'wpmudev_encrypted:' . base64_encode( $cipher );
+	}
+
+	/**
+	 * Decrypt a previously encrypted client secret.
+	 *
+	 * @param string $value Stored value (may be encrypted with prefix or plaintext).
+	 *
+	 * @return string Decrypted secret or original value on failure.
+	 */
+	private function decrypt_secret( string $value ): string {
+		if ( '' === $value ) {
+			return '';
+		}
+
+		// If not encrypted (no marker), return as-is (plaintext).
+		if ( ! $this->is_encrypted( $value ) ) {
+			return $value;
+		}
+
+		// If encrypted but OpenSSL unavailable, we cannot decrypt.
+		// Return original encrypted value to preserve data (Google Client will fail with clear error).
+		if ( ! function_exists( 'openssl_decrypt' ) ) {
+			// Log error for debugging.
+			if ( function_exists( 'error_log' ) ) {
+				error_log( 'WPMUDEV Drive: Cannot decrypt credentials - OpenSSL unavailable. Returning encrypted value to preserve data.' );
+			}
+			// Return original encrypted value to preserve data integrity.
+			// The Google Client will fail with a clear "invalid client secret" error,
+			// which is better than silently using an empty string.
+			return $value;
+		}
+
+		// Remove prefix and decode base64.
+		$encrypted_data = substr( $value, strlen( 'wpmudev_encrypted:' ) );
+		$decoded        = base64_decode( $encrypted_data, true );
+
+		if ( false === $decoded ) {
+			return '';
+		}
+
+		// Convert hex key to binary (SHA-256 produces 64 hex chars = 32 bytes).
+		$key_hex = hash( 'sha256', wp_salt( 'secure_auth' ) );
+		$key     = hex2bin( $key_hex );
+		
+		// IV must be 16 bytes for AES-CBC (32 hex characters = 16 bytes).
+		$iv_hex = hash( 'sha256', wp_salt( 'auth' ) );
+		$iv     = hex2bin( substr( $iv_hex, 0, 32 ) );
+
+		$plain = openssl_decrypt( $decoded, 'aes-256-cbc', $key, 0, $iv );
+
+		return false === $plain ? '' : $plain;
+	}
+
+	/**
+	 * Check if a value is encrypted (has our encryption marker).
+	 *
+	 * @param string $value Value to check.
+	 *
+	 * @return bool True if encrypted, false if plaintext.
+	 */
+	private function is_encrypted( string $value ): bool {
+		return strpos( $value, 'wpmudev_encrypted:' ) === 0;
 	}
 
 	/**
@@ -273,7 +434,7 @@ class Drive_API extends Base {
 				);
 			}
 
-			return true;
+			return $file_list;
 
 		} catch ( Exception $e ) {
 			return new WP_Error( 'api_error', $e->getMessage(), array( 'status' => 500 ) );

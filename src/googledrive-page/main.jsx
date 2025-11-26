@@ -32,6 +32,56 @@ const WPMUDEV_DriveTest = () => {
     };
 
     const handleSaveCredentials = async () => {
+        if (!credentials.clientId.trim() || !credentials.clientSecret.trim()) {
+            showNotice(
+                __('Both Client ID and Client Secret are required.', 'wpmudev-plugin-test'),
+                'error'
+            );
+            return;
+        }
+
+        try {
+            setIsLoading(true);
+
+            const response = await fetch(
+                `${window.location.origin}/wp-json/${window.wpmudevDriveTest.restEndpointSave}`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-WP-Nonce': window.wpmudevDriveTest.nonce,
+                    },
+                    body: JSON.stringify({
+                        client_id: credentials.clientId.trim(),
+                        client_secret: credentials.clientSecret.trim(),
+                    }),
+                }
+            );
+
+            const data = await response.json();
+
+            if (!response.ok || !data?.success) {
+                const errorMessage =
+                    data?.message ||
+                    __('Failed to save credentials. Please try again.', 'wpmudev-plugin-test');
+                showNotice(errorMessage, 'error');
+                return;
+            }
+
+            setHasCredentials(true);
+            setShowCredentials(false);
+            showNotice(
+                __('Credentials saved successfully.', 'wpmudev-plugin-test'),
+                'success'
+            );
+        } catch (error) {
+            showNotice(
+                __('An unexpected error occurred while saving credentials.', 'wpmudev-plugin-test'),
+                'error'
+            );
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     const handleAuth = async () => {
@@ -151,45 +201,54 @@ const WPMUDEV_DriveTest = () => {
                     </div>
                 </div>
             ) : !isAuthenticated ? (
-                <div className="sui-box">
+                <div className="sui-box wpmudev-drive-auth-box">
                     <div className="sui-box-header">
                         <h2 className="sui-box-title">
                             {__('Authenticate with Google Drive', 'wpmudev-plugin-test')}
                         </h2>
                     </div>
                     <div className="sui-box-body">
-                        <div className="sui-box-settings-row">
-                            <p>
-                                {__(
-                                    'Please authenticate with Google Drive to proceed with the test.',
-                                    'wpmudev-plugin-test'
-                                )}
-                            </p>
-                            <p>
-                                <strong>
+                        <div className="sui-box-settings-row wpmudev-drive-auth-row">
+                            <div className="wpmudev-drive-auth-copy">
+                                <p className="wpmudev-drive-auth-intro">
                                     {__(
-                                        'This test will require the following permissions:',
+                                        'Connect your Google Drive account so we can run the test with real API calls.',
                                         'wpmudev-plugin-test'
                                     )}
-                                </strong>
-                            </p>
-                            <ul>
-                                <li>
-                                    {__('View and manage Google Drive files', 'wpmudev-plugin-test')}
-                                </li>
-                                <li>
-                                    {__('Upload new files to Drive', 'wpmudev-plugin-test')}
-                                </li>
-                                <li>
-                                    {__('Create folders in Drive', 'wpmudev-plugin-test')}
-                                </li>
-                            </ul>
+                                </p>
+                                <p className="wpmudev-drive-auth-note">
+                                    {__(
+                                        'We will never store your files. Access is limited to the scopes listed here.',
+                                        'wpmudev-plugin-test'
+                                    )}
+                                </p>
+                            </div>
+                            <div className="wpmudev-drive-auth-scopes">
+                                <p className="wpmudev-drive-auth-scopes-title">
+                                    {__(
+                                        'This connection will be able to:',
+                                        'wpmudev-plugin-test'
+                                    )}
+                                </p>
+                                <ul>
+                                    <li>
+                                        {__('View and manage Google Drive files', 'wpmudev-plugin-test')}
+                                    </li>
+                                    <li>
+                                        {__('Upload new files to Drive', 'wpmudev-plugin-test')}
+                                    </li>
+                                    <li>
+                                        {__('Create folders in Drive', 'wpmudev-plugin-test')}
+                                    </li>
+                                </ul>
+                            </div>
                         </div>
                     </div>
                     <div className="sui-box-footer">
                         <div className="sui-actions-left">
                             <Button
                                 variant="secondary"
+                                className="wpmudev-drive-auth-change"
                                 onClick={() => setShowCredentials(true)}
                             >
                                 {__('Change Credentials', 'wpmudev-plugin-test')}
@@ -197,6 +256,7 @@ const WPMUDEV_DriveTest = () => {
                         </div>
                         <div className="sui-actions-right">
                             <Button
+                                className="wpmudev-drive-auth-primary"
                                 variant="primary"
                                 onClick={handleAuth}
                                 disabled={isLoading}
@@ -312,7 +372,7 @@ const WPMUDEV_DriveTest = () => {
                                                     <Button
                                                         variant="link"
                                                         size="small"
-                                                        href=''
+                                                        href={file.webViewLink}
                                                         target="_blank"
                                                     >
                                                         {__('View in Drive', 'wpmudev-plugin-test')}
