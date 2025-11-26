@@ -160,13 +160,62 @@ class Google_Drive extends Base {
 	/**
 	 * Checks if user is authenticated with Google Drive.
 	 *
+	 * This method performs a lightweight check for UI state purposes.
+	 * Actual token validation happens when API calls are made via ensure_valid_token().
+	 *
 	 * @return bool
 	 */
 	private function get_auth_status() {
 		$access_token = get_option( 'wpmudev_drive_access_token', '' );
-		$expires_at   = get_option( 'wpmudev_drive_token_expires', 0 );
 		
-		return ! empty( $access_token ) && time() < $expires_at;
+		if ( empty( $access_token ) || ! is_array( $access_token ) ) {
+			return false;
+		}
+
+		// Verify token has required structure (must have 'access_token' field).
+		// Check key existence first to avoid PHP 8.0+ undefined array key warnings.
+		if ( ! isset( $access_token['access_token'] ) || empty( $access_token['access_token'] ) || ! is_string( $access_token['access_token'] ) ) {
+			// Token structure is invalid, check if we can refresh.
+			$refresh_token = get_option( 'wpmudev_drive_refresh_token' );
+			return ! empty( $refresh_token );
+		}
+
+		// Get stored expiration time.
+		$expires_at = get_option( 'wpmudev_drive_token_expires', 0 );
+		
+		// If expiration time is stored, check if token is expired.
+		if ( $expires_at > 0 ) {
+			if ( time() >= $expires_at ) {
+				// Token expired, but we might have a refresh token.
+				$refresh_token = get_option( 'wpmudev_drive_refresh_token' );
+				return ! empty( $refresh_token );
+			}
+			// Token structure is valid and not expired.
+			// Note: Actual validity (e.g., not revoked) is verified on API calls.
+			return true;
+		}
+
+		// No expiration time stored - check token array for expiration info.
+		// Google Client library stores tokens with 'expires' field (timestamp).
+		if ( isset( $access_token['expires'] ) && is_numeric( $access_token['expires'] ) ) {
+			$token_expires = (int) $access_token['expires'];
+			if ( time() >= $token_expires ) {
+				// Token expired, check for refresh token.
+				$refresh_token = get_option( 'wpmudev_drive_refresh_token' );
+				return ! empty( $refresh_token );
+			}
+			// Token structure is valid and not expired.
+			// Note: Expiration time should be stored during token fetch/refresh operations,
+			// not in this read-only status check method to avoid unnecessary database writes.
+			// Note: Actual validity (e.g., not revoked) is verified on API calls.
+			return true;
+		}
+
+		// No expiration information available - be conservative.
+		// Even with a refresh token, we cannot verify the access token is valid.
+		// Return false to require re-authentication, which will validate the token.
+		// The token may be invalid/revoked, so we shouldn't show authenticated state.
+		return false;
 	}
 
 	/**

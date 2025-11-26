@@ -118,6 +118,64 @@ The plugin introduces a new admin menu named **Google Drive Test**. Your task is
 - Handle the complete OAuth 2.0 flow with proper error handling
 - Display appropriate success/error notifications
 
+##### Answer – Authentication Flow Implementation
+
+- **OAuth 2.0 Flow Implementation:**
+  - **Start Authentication (`/wp-json/wpmudev/v1/drive/auth`):**
+    - The `start_auth()` method in `app/endpoints/v1/class-googledrive-rest.php` validates that Google Client is configured and generates the OAuth authorization URL using `$client->createAuthUrl()`.
+    - Returns a structured `WP_REST_Response` with `success: true` and `auth_url` for frontend redirection.
+    - Includes proper permission callback (`manage_options`) and comprehensive error handling with translated error messages.
+  - **OAuth Callback Handler (`/wp-json/wpmudev/v1/drive/callback`):**
+    - The `handle_callback()` method processes the OAuth callback from Google:
+      - Extracts authorization `code` and `error` parameters from the request.
+      - Handles OAuth errors (user denial, invalid request, etc.) with user-friendly error messages.
+      - Validates authorization code presence before proceeding.
+      - Exchanges authorization code for access token using `$client->fetchAccessTokenWithAuthCode()`.
+      - Stores access token, refresh token (if provided), and expiration time in WordPress options.
+      - Updates Google Drive service instance with new token.
+      - Redirects to admin page with success/error status in URL parameters for frontend notification.
+    - Includes comprehensive error handling for all failure scenarios (missing code, token exchange failures, exceptions).
+  - **Token Management:**
+    - `ensure_valid_token()` method automatically refreshes expired tokens using stored refresh token.
+    - Properly stores and updates access tokens, refresh tokens, and expiration times.
+    - Updates Google Drive service instance after token refresh.
+    - Includes error logging for debugging token refresh failures.
+
+- **Frontend Integration:**
+  - **Authentication Button (`handleAuth()` function):**
+    - Validates that credentials are saved before starting authentication.
+    - Makes `POST` request to `/wp-json/wpmudev/v1/drive/auth` endpoint with proper headers and nonce.
+    - Shows loading state with spinner and "Connecting..." message during API call.
+    - Redirects user to Google OAuth consent screen using returned `auth_url`.
+    - Handles all error scenarios with user-friendly, translated error messages via notice system.
+  - **Callback Handling (`useEffect` hook):**
+    - Automatically detects OAuth callback redirects by checking URL parameters (`auth=success` or `auth=error`).
+    - On success: Updates authentication state, displays success notice, and cleans up URL parameters.
+    - On error: Extracts error message from URL, displays error notice with decoded message, and cleans up URL parameters.
+    - Ensures clean URLs after processing callback to prevent re-triggering notifications on page refresh.
+
+- **Error Handling & Notifications:**
+  - **Backend Error Handling:**
+    - All endpoints return proper `WP_Error` objects with translated error messages and appropriate HTTP status codes.
+    - OAuth errors from Google are properly extracted and passed to frontend via redirect URL parameters.
+    - Token refresh failures are logged for debugging while gracefully failing API operations.
+  - **Frontend Error Handling:**
+    - Network errors, API errors, and unexpected exceptions are all caught and displayed via the notice system.
+    - Error messages are user-friendly and fully translatable using WordPress i18n functions.
+    - Loading states prevent multiple simultaneous authentication attempts.
+  - **Success/Error Notifications:**
+    - Professional notice styling with Forminator colors (already implemented in previous sections).
+    - Success notices displayed on successful authentication with clear messaging.
+    - Error notices displayed for all failure scenarios with specific, actionable error messages.
+    - Notices auto-dismiss after 5 seconds with manual dismiss option.
+
+- **User Experience:**
+  - Loading states on authentication button with spinner and "Connecting..." text.
+  - Automatic state updates after successful authentication (UI transitions to file operations).
+  - Clean URL handling prevents notification re-triggering on page refresh.
+  - Professional button styling matching Forminator design system.
+  - Clear error messages guide users to resolve authentication issues.
+
 #### 2.4 File Operations Interface
 Once authenticated, implement these sections:
 

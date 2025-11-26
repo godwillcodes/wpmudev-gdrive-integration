@@ -1,4 +1,4 @@
-import { createRoot, render, StrictMode, useState, useEffect, createInterpolateElement } from '@wordpress/element';
+import { createRoot, render, StrictMode, useState, useEffect, useCallback, createInterpolateElement } from '@wordpress/element';
 import { __ } from '@wordpress/i18n';
 import { Button, TextControl, Spinner, Notice } from '@wordpress/components';
 
@@ -20,16 +20,39 @@ const WPMUDEV_DriveTest = () => {
         clientSecret: ''
     });
 
+    // Memoize showNotice to prevent stale closures in useEffect.
+    const showNotice = useCallback((message, type = 'success') => {
+        setNotice({ message, type });
+        setTimeout(() => setNotice({ message: '', type: '' }), 5000);
+    }, []); // setNotice is stable, so empty deps array is safe.
+
     useEffect(() => {
         // Keep local auth state in sync with server-provided value.
         setIsAuthenticated(window.wpmudevDriveTest.authStatus || false);
         setHasCredentials(window.wpmudevDriveTest.hasCredentials || false);
-    }, []);
 
-    const showNotice = (message, type = 'success') => {
-        setNotice({ message, type });
-        setTimeout(() => setNotice({ message: '', type: '' }), 5000);
-    };
+        // Handle OAuth callback redirects.
+        const urlParams = new URLSearchParams(window.location.search);
+        const authStatus = urlParams.get('auth');
+        const errorMessage = urlParams.get('error_message');
+
+        if (authStatus === 'success') {
+            setIsAuthenticated(true);
+            showNotice(
+                __('Successfully authenticated with Google Drive!', 'wpmudev-plugin-test'),
+                'success'
+            );
+            // Clean up URL parameters.
+            window.history.replaceState({}, document.title, window.location.pathname);
+        } else if (authStatus === 'error') {
+            const message = errorMessage
+                ? decodeURIComponent(errorMessage)
+                : __('Authentication failed. Please try again.', 'wpmudev-plugin-test');
+            showNotice(message, 'error');
+            // Clean up URL parameters.
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
+    }, [showNotice]); // Include showNotice in dependencies to prevent stale closures.
 
     const handleSaveCredentials = async () => {
         if (!credentials.clientId.trim() || !credentials.clientSecret.trim()) {
@@ -85,6 +108,57 @@ const WPMUDEV_DriveTest = () => {
     };
 
     const handleAuth = async () => {
+        if (!hasCredentials) {
+            showNotice(
+                __('Please save your Google Drive credentials first.', 'wpmudev-plugin-test'),
+                'error'
+            );
+            return;
+        }
+
+        try {
+            setIsLoading(true);
+
+            const response = await fetch(
+                `${window.location.origin}/wp-json/${window.wpmudevDriveTest.restEndpointAuth}`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-WP-Nonce': window.wpmudevDriveTest.nonce,
+                    },
+                }
+            );
+
+            const data = await response.json();
+
+            if (!response.ok || !data?.success) {
+                const errorMessage =
+                    data?.message ||
+                    data?.code ||
+                    __('Failed to start authentication. Please try again.', 'wpmudev-plugin-test');
+                showNotice(errorMessage, 'error');
+                setIsLoading(false);
+                return;
+            }
+
+            // Redirect to Google OAuth consent screen.
+            if (data.auth_url) {
+                window.location.href = data.auth_url;
+            } else {
+                showNotice(
+                    __('Invalid response from server. Please try again.', 'wpmudev-plugin-test'),
+                    'error'
+                );
+                setIsLoading(false);
+            }
+        } catch (error) {
+            showNotice(
+                __('An unexpected error occurred while starting authentication.', 'wpmudev-plugin-test'),
+                'error'
+            );
+            setIsLoading(false);
+        }
     };
 
     const loadFiles = async () => {
@@ -261,7 +335,14 @@ const WPMUDEV_DriveTest = () => {
                                 onClick={handleAuth}
                                 disabled={isLoading}
                             >
-                                {isLoading ? <Spinner /> : __('Authenticate with Google Drive', 'wpmudev-plugin-test')}
+                                {isLoading ? (
+                                    <>
+                                        <Spinner />
+                                        {__('Connecting...', 'wpmudev-plugin-test')}
+                                    </>
+                                ) : (
+                                    __('Authenticate with Google Drive', 'wpmudev-plugin-test')
+                                )}
                             </Button>
                         </div>
                     </div>
