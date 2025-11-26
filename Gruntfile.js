@@ -7,31 +7,49 @@ module.exports = function (grunt) {
 		archive: `./build/${pkg.name}-${pkg.version}.zip`,
 	}
 
+	/**
+	 * Files that should be included in the production build.
+	 *
+	 * The goal is to ship only what is required for the plugin to run on a
+	 * WordPress site:
+	 * - PHP source (`app/`, `core/` and the main plugin file)
+	 * - Compiled assets (`assets/`)
+	 * - Translation files (`languages/`)
+	 * - Optional changelog / readme for the end user
+	 *
+	 * Development and tooling files (tests, build config, source JS/SCSS,
+	 * coding standards configs, etc.) are intentionally excluded to keep the
+	 * final zip size small while retaining full functionality.
+	 */
 	const copyFiles = [
 		'app/**',
 		'core/**',
+		'assets/**',
 		'languages/**',
 		'uninstall.php',
 		'wpmudev-plugin-test.php',
-		'!vendor/**',
-		'!**/*.map',
-		'QUESTIONS.md',
-		'README.md',
+		// Composer manifest so `composer:install` can install runtime deps.
 		'composer.json',
 		'composer.lock',
-		'package.json',
-		'Gruntfile.js',
-		'gulpfile.js',
-		'webpack.config.js',
-		'phpcs.ruleset.xml',
-		'phpunit.xml.dist',
-		'src/**',
-		'tests/**',
+		// Optional documentation for the end user.
+		'changelog.txt',
+		'README.md',
+		// Never ship the development vendor tree or sourcemaps.
+		'!vendor/**',
+		'!**/*.map',
+		// Explicitly exclude development / tooling / source files.
+		'!node_modules/**',
+		'!src/**',
+		'!tests/**',
+		'!Gruntfile.js',
+		'!gulpfile.js',
+		'!webpack.config.js',
+		'!phpcs.ruleset.xml',
+		'!phpunit.xml.dist',
+		'!QUESTIONS.md',
 	]
 
-	const excludeCopyFilesPro = copyFiles
-		.slice(0)
-		.concat(['changelog.txt'])
+	const excludeCopyFilesPro = copyFiles.slice(0)
 
 	grunt.initConfig({
 		pkg,

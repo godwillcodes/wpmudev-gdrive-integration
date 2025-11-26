@@ -5,6 +5,33 @@ While executing the build command, you will notice that the resulting plugin zip
 
 **Hint:** Consider how external dependencies are being included in the final build.
 
+### Answer – Package Optimization
+
+To reduce the plugin zip size **without losing any runtime functionality**, the build process was updated to ship **only production-ready files** and to keep all heavy **development and tooling artifacts** out of the final archive.
+
+- **Problem identified:**  
+  The Grunt build previously copied a wide range of development files (e.g. `src/**`, `tests/**`, build configs, coding-standard configs, and task files) into the `build/wpmudev-plugin-test/` directory before zipping. At the same time, Composer dependencies were installed there, which meant the final zip contained both:
+  - All required runtime Composer packages, **and**
+  - Unnecessary development, testing, and source assets that inflated the archive size.
+
+- **Solution implemented (Gruntfile optimization):**  
+  The `Gruntfile.js` `copyFiles` configuration was refined so that the release directory now includes only:
+  - **Runtime PHP code:** `app/**`, `core/**`, and `wpmudev-plugin-test.php`  
+  - **Compiled assets:** `assets/**` (built JS/CSS used by the plugin in production)  
+  - **Translations:** `languages/**`  
+  - **Essential metadata:** `composer.json`, `composer.lock` (for installing runtime-only Composer deps), plus optional `README.md` and `changelog.txt`
+
+  At the same time, the following are **explicitly excluded** from the release build:
+  - Root `vendor/**` tree (Composer is re-run in the release dir with `--no-dev`)  
+  - Development sources and tests: `src/**`, `tests/**`  
+  - Node and build tooling: `node_modules/**`, `Gruntfile.js`, `gulpfile.js`, `webpack.config.js`  
+  - CI/testing and coding-standards config: `phpcs.ruleset.xml`, `phpunit.xml.dist`  
+  - Internal task documentation: `QUESTIONS.md`  
+  - All source maps: `**/*.map`
+
+- **Result:**  
+  The build still runs `composer install --no-dev --optimize-autoloader` inside the release directory so that all required runtime Composer dependencies (such as `google/apiclient`) are present, but the final zip no longer carries development, testing, or build-tool artifacts. This keeps the plugin **lightweight, focused on production code only, and fully functional** in a standard WordPress installation.
+
 ---
 
 ## 2. Google Drive Admin Interface (React Implementation)
