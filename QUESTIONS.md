@@ -649,6 +649,40 @@ Complete the file upload functionality to Google Drive:
 - Return upload progress/completion status
 - Implement proper error handling and cleanup
 
+##### Answer – File Upload Implementation
+
+- **Secure Multipart Handling (`upload_file()` endpoint):**
+  - **Authentication Check:** Uses `ensure_valid_token()` to verify access token before handling uploads. Returns HTTP 401 with translated error if user is not authenticated.
+  - **File Presence Validation:** Reads uploaded files from `$request->get_file_params()` and returns a descriptive error if no file is provided.
+  - **PHP Upload Error Mapping:** Provides user-friendly, translated messages for all PHP `UPLOAD_ERR_*` scenarios (size exceeded, partial upload, missing temp folder, etc.).
+  - **Integrity Check:** Verifies that the uploaded file exists and is a real uploaded file using `is_uploaded_file()` before reading from disk.
+
+- **File Type & Size Validation:**
+  - **Configurable Size Limit:** Maximum file size defaults to 50 MB (52,428,800 bytes) but can be customized via the `wpmudev_drive_upload_max_size` filter.
+  - **Allowed MIME Types:** Validates MIME type using `wp_check_filetype_and_ext()` and compares against a filterable allow-list (`wpmudev_drive_allowed_mime_types`) that includes common document, image, archive, and Google Workspace formats.
+  - **Sanitized File Names:** Uses `sanitize_file_name()` before sending the file to Google Drive to avoid unsafe characters.
+
+- **Upload Processing:**
+  - Creates a `Google_Service_Drive_DriveFile` instance with the sanitized file name.
+  - Reads the uploaded file’s contents (WordPress automatically cleans up temp files).
+  - Calls `$this->drive_service->files->create()` with `uploadType => multipart` to transmit the file data to Google Drive.
+  - Responses include file metadata (`id`, `name`, `mimeType`, `size`, `webViewLink`) inside a structured JSON object: `{ success: true, file: {...} }`.
+
+- **Progress/Completion Integration:**
+  - Backend returns success immediately after Google confirms the upload, including file metadata, enabling the React frontend to refresh the file list and show completion notices.
+  - Frontend uses XMLHttpRequest with progress events to display a live progress bar and percentage to the user (covered in Section **2.4 File Operations Interface**).
+
+- **Error Handling & Cleanup:**
+  - Catches both `Google_Service_Exception` (Google API errors) and generic `\Exception`, logging them for debugging via `error_log()` without exposing sensitive details to the user.
+  - Returns `WP_Error` with translated, user-friendly messages for validation failures, Google API errors, and unexpected exceptions.
+  - Ensures appropriate HTTP status codes (400 for validation issues, 401 for authentication issues, 500 for server/API errors).
+  - Uses `sanitize_text_field()` for query and pagination parameters, `absint()` for numeric values, and WordPress security helpers throughout the request lifecycle.
+
+- **Extensibility & Filters:**
+  - `wpmudev_drive_upload_max_size`: Customize maximum upload size.
+  - `wpmudev_drive_allowed_mime_types`: Extend or restrict permitted MIME types.
+  - These filters make it easy to adapt the plugin to varying site policies without changing core code.
+
 ---
 
 ## 7. Posts Maintenance Admin Page

@@ -870,53 +870,171 @@ class Drive_API extends Base {
 
 	/**
 	 * Upload file to Google Drive.
+	 *
+	 * @param WP_REST_Request $request Request instance.
+	 *
+	 * @return WP_REST_Response|WP_Error
 	 */
 	public function upload_file( WP_REST_Request $request ) {
 		if ( ! $this->ensure_valid_token() ) {
-			return new WP_Error( 'no_access_token', 'Not authenticated with Google Drive', array( 'status' => 401 ) );
+			return new WP_Error(
+				'no_access_token',
+				__( 'Not authenticated with Google Drive. Please authenticate first.', 'wpmudev-plugin-test' ),
+				array( 'status' => 401 )
+			);
 		}
 
 		$files = $request->get_file_params();
-		
+
 		if ( empty( $files['file'] ) ) {
-			return new WP_Error( 'no_file', 'No file provided', array( 'status' => 400 ) );
+			return new WP_Error(
+				'no_file',
+				__( 'No file provided. Please choose a file to upload.', 'wpmudev-plugin-test' ),
+				array( 'status' => 400 )
+			);
 		}
 
 		$file = $files['file'];
-		
-		if ( $file['error'] !== UPLOAD_ERR_OK ) {
-			return new WP_Error( 'upload_error', 'File upload error', array( 'status' => 400 ) );
+
+		// Map PHP upload errors to human-readable messages.
+		if ( UPLOAD_ERR_OK !== $file['error'] ) {
+			$messages = array(
+				UPLOAD_ERR_INI_SIZE   => __( 'The uploaded file exceeds the maximum size allowed by the server.', 'wpmudev-plugin-test' ),
+				UPLOAD_ERR_FORM_SIZE  => __( 'The uploaded file exceeds the maximum size allowed by the form.', 'wpmudev-plugin-test' ),
+				UPLOAD_ERR_PARTIAL    => __( 'The uploaded file was only partially uploaded. Please try again.', 'wpmudev-plugin-test' ),
+				UPLOAD_ERR_NO_FILE    => __( 'No file was uploaded. Please select a file.', 'wpmudev-plugin-test' ),
+				UPLOAD_ERR_NO_TMP_DIR => __( 'Missing a temporary folder on the server. Please contact the site administrator.', 'wpmudev-plugin-test' ),
+				UPLOAD_ERR_CANT_WRITE => __( 'Failed to write file to disk. Please try again.', 'wpmudev-plugin-test' ),
+				UPLOAD_ERR_EXTENSION  => __( 'A PHP extension stopped the upload.', 'wpmudev-plugin-test' ),
+			);
+
+			$error_message = isset( $messages[ $file['error'] ] ) ? $messages[ $file['error'] ] : __( 'An unknown upload error occurred.', 'wpmudev-plugin-test' );
+
+			return new WP_Error(
+				'upload_error',
+				$error_message,
+				array( 'status' => 400 )
+			);
 		}
 
-		try {
-			// Create file metadata
-			$drive_file = new Google_Service_Drive_DriveFile();
-			$drive_file->setName( $file['name'] );
+		if ( empty( $file['tmp_name'] ) || ! is_uploaded_file( $file['tmp_name'] ) ) {
+			return new WP_Error(
+				'invalid_upload',
+				__( 'Invalid uploaded file. Please try again.', 'wpmudev-plugin-test' ),
+				array( 'status' => 400 )
+			);
+		}
 
-			// Upload file
+		$max_size = apply_filters( 'wpmudev_drive_upload_max_size', 52428800 ); // 50 MB default.
+
+		if ( ! empty( $file['size'] ) && $file['size'] > $max_size ) {
+			return new WP_Error(
+				'file_too_large',
+				sprintf(
+					/* translators: %s: Maximum size in MB */
+					__( 'The file is too large. Maximum allowed size is %s MB.', 'wpmudev-plugin-test' ),
+					number_format_i18n( $max_size / 1048576, 2 )
+				),
+				array( 'status' => 400 )
+			);
+		}
+
+		$allowed_mimes = apply_filters(
+			'wpmudev_drive_allowed_mime_types',
+			array(
+				'application/pdf',
+				'application/zip',
+				'application/json',
+				'application/msword',
+				'application/vnd.ms-excel',
+				'application/vnd.ms-powerpoint',
+				'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+				'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+				'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+				'application/vnd.google-apps.document',
+				'application/vnd.google-apps.spreadsheet',
+				'application/vnd.google-apps.presentation',
+				'text/plain',
+				'text/csv',
+				'image/jpeg',
+				'image/png',
+				'image/gif',
+				'image/webp',
+			)
+		);
+
+		$filetype = wp_check_filetype_and_ext( $file['tmp_name'], $file['name'] );
+		$mime     = isset( $filetype['type'] ) ? $filetype['type'] : '';
+
+		if ( empty( $allowed_mimes ) ) {
+			return new WP_Error(
+				'invalid_file_type',
+				__( 'File uploads are currently disabled. Please contact the site administrator.', 'wpmudev-plugin-test' ),
+				array( 'status' => 400 )
+			);
+		}
+
+		if ( empty( $mime ) || ! in_array( $mime, $allowed_mimes, true ) ) {
+			return new WP_Error(
+				'invalid_file_type',
+				__( 'The selected file type is not allowed. Please upload a different file.', 'wpmudev-plugin-test' ),
+				array( 'status' => 400 )
+			);
+		}
+
+		$sanitized_name = sanitize_file_name( $file['name'] );
+
+		try {
+			$drive_file = new Google_Service_Drive_DriveFile();
+			$drive_file->setName( $sanitized_name );
+
 			$result = $this->drive_service->files->create(
 				$drive_file,
 				array(
 					'data'       => file_get_contents( $file['tmp_name'] ),
-					'mimeType'   => $file['type'],
+					'mimeType'   => $mime,
 					'uploadType' => 'multipart',
 					'fields'     => 'id,name,mimeType,size,webViewLink',
 				)
 			);
 
-			return new WP_REST_Response( array(
-				'success' => true,
-				'file'    => array(
-					'id'          => $result->getId(),
-					'name'        => $result->getName(),
-					'mimeType'    => $result->getMimeType(),
-					'size'        => $result->getSize(),
-					'webViewLink' => $result->getWebViewLink(),
+			return new WP_REST_Response(
+				array(
+					'success' => true,
+					'file'    => array(
+						'id'          => $result->getId(),
+						'name'        => $result->getName(),
+						'mimeType'    => $result->getMimeType(),
+						'size'        => $result->getSize(),
+						'webViewLink' => $result->getWebViewLink(),
+					),
 				),
-			) );
+				200
+			);
 
-		} catch ( Exception $e ) {
-			return new WP_Error( 'upload_failed', $e->getMessage(), array( 'status' => 500 ) );
+		} catch ( \Google_Service_Exception $e ) {
+			$error_message = $e->getMessage();
+
+			if ( function_exists( 'error_log' ) ) {
+				error_log( sprintf( 'WPMUDEV Drive: Upload Google API error: %s', $error_message ) );
+			}
+
+			return new WP_Error(
+				'upload_failed',
+				__( 'Google Drive reported an error while uploading the file. Please try again later.', 'wpmudev-plugin-test' ),
+				array( 'status' => 500 )
+			);
+
+		} catch ( \Exception $e ) {
+			if ( function_exists( 'error_log' ) ) {
+				error_log( sprintf( 'WPMUDEV Drive: Upload exception: %s', $e->getMessage() ) );
+			}
+
+			return new WP_Error(
+				'upload_failed',
+				__( 'An unexpected error occurred while uploading the file. Please try again later.', 'wpmudev-plugin-test' ),
+				array( 'status' => 500 )
+			);
 		}
 	}
 
