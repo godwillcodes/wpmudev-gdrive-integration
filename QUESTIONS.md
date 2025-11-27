@@ -788,6 +788,25 @@ Address potential conflicts with composer packages:
 - Document your approach and reasoning
 - Consider namespace isolation and dependency scoping
 
+##### Answer – Dependency Management & Compatibility
+
+- **Strict Namespace Isolation (All PHP):**
+  - Every class lives under the `WPMUDEV\PluginTest\…` namespace (see `core/class-loader.php`, `app/**`), so nothing leaks into the global namespace. Singleton base/loader patterns ensure only one instance per class and avoid conflicting globals.
+  - Public hooks/filters are prefixed with `wpmudev_…` (e.g., `wpmudev_posts_scan_batch_size`, `wpmudev_posts_scan_post_types`) to prevent collisions with other plugins.
+
+- **Composer Scope & Runtime-Only Dependencies:**
+  - `composer.json` requires only `google/apiclient` and autoloads **only our own directories** via `"autoload": { "classmap": ["core/", "app/"] }`, keeping Composer’s autoloader private to this plugin.
+  - Release builds run `composer install --no-dev --optimize-autoloader` inside the packaged `/build` directory so the plugin ships with its own vendor tree and never depends on – or overrides – the site’s root `vendor` folder.
+  - We do **not** bundle or require common libraries (e.g., Guzzle, PSR packages) that might conflict; all third‑party code stays within the plugin’s namespaced vendor path.
+
+- **Compatibility Guards & Defensive Bootstrapping:**
+  - `core/class-loader.php` verifies minimum PHP (`7.4+`) and WordPress (`6.1+`) versions before booting; if requirements aren’t met the plugin politely no‑ops instead of fatally erroring.
+  - All runtime checks (`ensure_valid_token`, REST permission callbacks, WP-Cron scheduling) rely on official WordPress APIs, so nothing touches global constants or rewires core services.
+
+- **Documentation & Build Process Transparency:**
+  - Section 1 (“Package Optimization”) explains how we keep runtime artifacts separate from dev tooling, ensuring downstream installs never see unneeded Composer/WP-CLI dependencies.
+  - Section 9 (this answer) documents the exact steps: namespacing, filtered hooks, isolated Composer autoloading, and compatibility checks, so maintainers know why duplicates/conflicts are avoided.
+
 ---
 
 ## 10. Unit Testing Implementation
