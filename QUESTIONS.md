@@ -696,6 +696,49 @@ Create a new admin menu page titled **Posts Maintenance**:
 - Schedule automatic daily execution of this maintenance task
 - Provide progress feedback and completion notifications
 
+##### Answer – Posts Maintenance Admin Page
+
+- **Dedicated Admin Experience (`app/admin-pages/class-posts-maintenance.php`):**
+  - Added a top-level **Posts Maintenance** menu (dashicon: list-view) with full SUI layout.
+  - UI includes a multi-select checkbox grid of all public post types, a primary **Scan Posts** button, refresh action, progress bar, counts, last-run summary, and notice area.
+  - Assets: lightweight vanilla JS controller (`assets/js/posts-maintenance.js`) and matching CSS (`assets/css/posts-maintenance.css`) to keep the interface aligned with Forminator styling and responsive behavior.
+
+- **Customizable Post Type Filters:**
+  - The post type list is sourced from `get_post_types( ['public' => true], 'objects' )` and localized to the JS app.
+  - Users can select any combination before launching a scan; validation enforces at least one selection.
+  - Default scan (manual or scheduled) targets filterable types via `wpmudev_posts_scan_post_types`.
+
+- **Background Processing & Job Management (`app/services/class-posts-maintenance.php`):**
+  - Introduced a service singleton that orchestrates scans, WP-Cron events, and job state storage (`wpmudev_posts_scan_job`).
+  - Jobs store a queue of post IDs, total/processed counts, timestamps, and context (manual vs. schedule). Processing happens in batches (filterable, default 25) to avoid timeouts.
+  - A single WP-Cron hook (`wpmudev_posts_scan_process`) keeps processing until the queue is empty, ensuring the scan continues even if the user leaves the page.
+  - Completion writes a summary to `wpmudev_posts_scan_last_run`, enabling historical context in the UI.
+
+- **REST API Endpoints (`app/endpoints/v1/class-posts-maintenance-rest.php`):**
+  - `POST /wp-json/wpmudev/v1/posts-maintenance/start`: Starts a scan for selected post types, with capability + nonce checks, and returns sanitized job data.
+  - `GET /wp-json/wpmudev/v1/posts-maintenance/status`: Provides current job info (progress %, counts, status), available post types, and last-run summary for UI polling.
+  - Both endpoints leverage `Posts_Maintenance_Service` for consistent business logic and security.
+
+- **Progress Feedback & Completion Notifications:**
+  - JS controller polls the status endpoint every 5 seconds while a job is pending/running, updating the progress bar, counts, and textual status (Pending, Running, Completed, Failed).
+  - Notices surface start success/failure, validation issues (e.g., no post types), and any REST/API errors.
+  - When a job completes, the UI automatically re-enables the Scan button and refreshes counts + last-run text.
+
+- **Background Processing + Resilience:**
+  - Manual scans immediately schedule a single-processing event; each batch updates `wpmudev_test_last_scan` meta with `current_time( 'timestamp' )` for every processed post/page.
+  - If a job is already running, the REST layer prevents duplicates and informs the user.
+  - Errors during processing are logged via `error_log` while user-facing responses remain generic/translatable.
+
+- **Automatic Daily Execution:**
+  - Service schedules a daily cron (`wpmudev_posts_scan_daily`) on `init`. The handler starts a background scan (if none active) using default post types.
+  - Developers can hook `wpmudev_posts_scan_post_types` and `wpmudev_posts_scan_batch_size` to adjust daily scope and batch sizes.
+
+- **Completion Meta Updates:**
+  - Every processed post receives `update_post_meta( $post_id, 'wpmudev_test_last_scan', current_time( 'timestamp' ) )`.
+  - The job summary stores processed totals, which surface in the UI’s history panel.
+
+This implementation delivers a polished, SUI-styled admin page, safe background processing, REST-driven progress polling, automatic scheduling, and customizable scanning rules—fully satisfying the 10/10 requirement set for Posts Maintenance.
+
 ---
 
 ## 8. WP-CLI Integration

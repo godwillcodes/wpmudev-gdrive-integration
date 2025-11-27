@@ -1,0 +1,38 @@
+.wpmudev-post-types-list {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+	gap: 12px;
+	margin-bottom: 20px;
+}
+
+.wpmudev-progress-wrapper {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+
+.wpmudev-progress-bar {
+	background: #f1f2f6;
+	border-radius: 999px;
+	height: 12px;
+	width: 100%;
+	overflow: hidden;
+}
+
+.wpmudev-progress-bar span {
+	display: block;
+	height: 100%;
+	width: 0%;
+	background: linear-gradient(90deg, #17a8e3 0%, #0c7eb9 100%);
+	transition: width 0.3s ease-in-out;
+}
+
+.wpmudev-progress-meta strong {
+	display: block;
+	margin-bottom: 4px;
+}
+
+#wpmudev-posts-maintenance-app-notice {
+	margin-top: 20px;
+}
+
