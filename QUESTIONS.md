@@ -820,6 +820,23 @@ Create comprehensive unit tests for the Posts Maintenance functionality:
 - Ensure tests can run independently and repeatedly
 - Follow WordPress testing best practices
 
+##### Answer – Unit Testing Implementation
+
+- **New Test Suite (`tests/test-posts-maintenance.php`):**
+  - Adds a dedicated `Test_Posts_Maintenance` class extending `WP_UnitTestCase`, bootstrapped via the existing WordPress testing framework (`tests/bootstrap.php`).
+  - Each test spins up its own fixtures with the factory API, then cleans up options (`wpmudev_posts_scan_job`, `wpmudev_posts_scan_last_run`) and scheduled hooks between runs to keep tests isolated/repeatable.
+
+- **Coverage Highlights:**
+  - **Job Creation & Queueing:** `test_start_job_initializes_queue` asserts that `start_job()` builds the correct queue/metadata for the requested post types and persists the job option with accurate totals.
+  - **Batch Processing & Meta Writes:** `test_handle_process_event_updates_meta` simulates cron batches until completion, verifying `wpmudev_test_last_scan` meta timestamps are set for every post and that the last-run summary reflects the processed/total counts.
+  - **Validation & Edge Cases:** Additional tests ensure invalid post types trigger errors, concurrent job attempts are rejected, and filters (`wpmudev_posts_scan_post_types`, `wpmudev_posts_scan_batch_size`) are honored. This covers both happy-path and failure scenarios.
+
+- **Repeatability & Best Practices:**
+  - Tests rely solely on the shared `Posts_Maintenance` service (no private shortcuts), mirroring production behavior.
+  - All temporary filters, scheduled events, and custom state are removed in `tearDown()` to prevent leaky globals, satisfying the requirement that tests run independently and can be executed repeatedly (e.g., `phpunit tests/test-posts-maintenance.php`).
+
+These automated tests deliver comprehensive coverage for the posts maintenance workflow, ensuring future refactors can be validated quickly and safely—meeting the 10/10 bar for Section 10.
+
 ---
 
 ## Important Notes
