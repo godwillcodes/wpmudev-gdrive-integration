@@ -835,8 +835,6 @@ Create comprehensive unit tests for the Posts Maintenance functionality:
   - Tests rely solely on the shared `Posts_Maintenance` service (no private shortcuts), mirroring production behavior.
   - All temporary filters, scheduled events, and custom state are removed in `tearDown()` to prevent leaky globals, satisfying the requirement that tests run independently and can be executed repeatedly (e.g., `phpunit tests/test-posts-maintenance.php`).
 
-These automated tests deliver comprehensive coverage for the posts maintenance workflow, ensuring future refactors can be validated quickly and safely—meeting the 10/10 bar for Section 10.
-
 ---
 
 ## Important Notes

@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2025-08-28T16:10:12+00:00\n"
+"POT-Creation-Date: 2025-11-27T13:56:01+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 
@@ -30,4 +30,210 @@ msgstr ""
 
 #: app/admin-pages/class-googledrive-settings.php:81
 msgid "Google Drive Test"
+msgstr ""
+
+#: app/admin-pages/class-posts-maintenance.php:53
+#: app/admin-pages/class-posts-maintenance.php:54
+#: app/admin-pages/class-posts-maintenance.php:135
+msgid "Posts Maintenance"
+msgstr ""
+
+#: app/admin-pages/class-posts-maintenance.php:115
+msgid "Select at least one post type to scan."
+msgstr ""
+
+#: app/admin-pages/class-posts-maintenance.php:116
+#: app/endpoints/v1/class-posts-maintenance-rest.php:108
+msgid "Scan started successfully."
+msgstr ""
+
+#: app/admin-pages/class-posts-maintenance.php:117
+msgid "Failed to start scan."
+msgstr ""
+
+#: app/admin-pages/class-posts-maintenance.php:138
+msgid "Refresh Status"
+msgstr ""
+
+#: app/admin-pages/class-posts-maintenance.php:145
+msgid "Scan Options"
+msgstr ""
+
+#: app/admin-pages/class-posts-maintenance.php:148
+msgid "Scan your published posts and pages to stamp the latest maintenance timestamp. Choose which post types to include and launch the process in the background."
+msgstr ""
+
+#: app/admin-pages/class-posts-maintenance.php:151
+msgid "Post types to scan"
+msgstr ""
+
+#: app/admin-pages/class-posts-maintenance.php:156
+msgid "Scan Posts"
+msgstr ""
+
+#: app/admin-pages/class-posts-maintenance.php:163
+msgid "Progress"
+msgstr ""
+
+#: app/admin-pages/class-posts-maintenance.php:171
+msgid "No active scan."
+msgstr ""
+
+#: app/cli/class-posts-maintenance-command.php:70
+msgid "Batch size must be between 1 and 200."
+msgstr ""
+
+#: app/cli/class-posts-maintenance-command.php:98
+msgid "No posts matched the supplied criteria."
+msgstr ""
+
+#. translators: %1$s: comma-separated post types, %2$d: total posts
+#: app/cli/class-posts-maintenance-command.php:105
+#, php-format
+msgid "Scanning %2$d posts across: %1$s"
+msgstr ""
+
+#: app/cli/class-posts-maintenance-command.php:111
+msgid "Scanning posts"
+msgstr ""
+
+#. translators: %1$d: processed posts, %2$d: total, %3$s: date string
+#: app/cli/class-posts-maintenance-command.php:138
+#, php-format
+msgid "Scan complete. Processed %1$d of %2$d posts. Last run stored on %3$s."
+msgstr ""
+
+#: app/cli/class-posts-maintenance-command.php:145
+msgid "Scan complete."
+msgstr ""
+
+#: app/endpoints/v1/class-googledrive-rest.php:262
+msgid "Both Client ID and Client Secret are required."
+msgstr ""
+
+#: app/endpoints/v1/class-googledrive-rest.php:399
+msgid "Google OAuth credentials are not configured. Please save your Client ID and Client Secret first."
+msgstr ""
+
+#. translators: %s: Error message
+#: app/endpoints/v1/class-googledrive-rest.php:435
+#, php-format
+msgid "Failed to generate authorization URL: %s"
+msgstr ""
+
+#: app/endpoints/v1/class-googledrive-rest.php:465
+msgid "State parameter missing. Security validation failed."
+msgstr ""
+
+#: app/endpoints/v1/class-googledrive-rest.php:483
+msgid "Invalid state parameter format. Possible CSRF attack detected."
+msgstr ""
+
+#: app/endpoints/v1/class-googledrive-rest.php:516
+msgid "Invalid or expired state parameter. Please try authenticating again."
+msgstr ""
+
+#: app/endpoints/v1/class-googledrive-rest.php:557
+msgid "Authorization code not received from Google."
+msgstr ""
+
+#: app/endpoints/v1/class-googledrive-rest.php:573
+msgid "Google OAuth credentials are not configured."
+msgstr ""
+
+#. translators: %s: Error message
+#: app/endpoints/v1/class-googledrive-rest.php:653
+#, php-format
+msgid "Failed to exchange authorization code: %s"
+msgstr ""
+
+#: app/endpoints/v1/class-googledrive-rest.php:745
+#: app/endpoints/v1/class-googledrive-rest.php:882
+msgid "Not authenticated with Google Drive. Please authenticate first."
+msgstr ""
+
+#. translators: %s: Error message
+#: app/endpoints/v1/class-googledrive-rest.php:847
+#, php-format
+msgid "Failed to fetch files from Google Drive: %s"
+msgstr ""
+
+#. translators: %s: Error message
+#: app/endpoints/v1/class-googledrive-rest.php:863
+#, php-format
+msgid "An error occurred while fetching files: %s"
+msgstr ""
+
+#: app/endpoints/v1/class-googledrive-rest.php:892
+msgid "No file provided. Please choose a file to upload."
+msgstr ""
+
+#: app/endpoints/v1/class-googledrive-rest.php:902
+msgid "The uploaded file exceeds the maximum size allowed by the server."
+msgstr ""
+
+#: app/endpoints/v1/class-googledrive-rest.php:903
+msgid "The uploaded file exceeds the maximum size allowed by the form."
+msgstr ""
+
+#: app/endpoints/v1/class-googledrive-rest.php:904
+msgid "The uploaded file was only partially uploaded. Please try again."
+msgstr ""
+
+#: app/endpoints/v1/class-googledrive-rest.php:905
+msgid "No file was uploaded. Please select a file."
+msgstr ""
+
+#: app/endpoints/v1/class-googledrive-rest.php:906
+msgid "Missing a temporary folder on the server. Please contact the site administrator."
+msgstr ""
+
+#: app/endpoints/v1/class-googledrive-rest.php:907
+msgid "Failed to write file to disk. Please try again."
+msgstr ""
+
+#: app/endpoints/v1/class-googledrive-rest.php:908
+msgid "A PHP extension stopped the upload."
+msgstr ""
+
+#: app/endpoints/v1/class-googledrive-rest.php:911
+msgid "An unknown upload error occurred."
+msgstr ""
+
+#: app/endpoints/v1/class-googledrive-rest.php:923
+msgid "Invalid uploaded file. Please try again."
+msgstr ""
+
+#. translators: %s: Maximum size in MB
+#: app/endpoints/v1/class-googledrive-rest.php:935
+#, php-format
+msgid "The file is too large. Maximum allowed size is %s MB."
+msgstr ""
+
+#: app/endpoints/v1/class-googledrive-rest.php:972
+msgid "File uploads are currently disabled. Please contact the site administrator."
+msgstr ""
+
+#: app/endpoints/v1/class-googledrive-rest.php:980
+msgid "The selected file type is not allowed. Please upload a different file."
+msgstr ""
+
+#: app/endpoints/v1/class-googledrive-rest.php:1024
+msgid "Google Drive reported an error while uploading the file. Please try again later."
+msgstr ""
+
+#: app/endpoints/v1/class-googledrive-rest.php:1035
+msgid "An unexpected error occurred while uploading the file. Please try again later."
+msgstr ""
+
+#: app/services/class-posts-maintenance.php:63
+msgid "A scan is already running. Please wait for it to finish before starting a new one."
+msgstr ""
+
+#: app/services/class-posts-maintenance.php:80
+msgid "No valid public post types were provided."
+msgstr ""
+
+#: app/services/class-posts-maintenance.php:100
+msgid "No published posts were found for the selected post types."
 msgstr ""
