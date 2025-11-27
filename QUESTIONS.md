@@ -736,9 +736,6 @@ Create a new admin menu page titled **Posts Maintenance**:
 - **Completion Meta Updates:**
   - Every processed post receives `update_post_meta( $post_id, 'wpmudev_test_last_scan', current_time( 'timestamp' ) )`.
   - The job summary stores processed totals, which surface in the UI’s history panel.
-
-This implementation delivers a polished, SUI-styled admin page, safe background processing, REST-driven progress polling, automatic scheduling, and customizable scanning rules—fully satisfying the 10/10 requirement set for Posts Maintenance.
-
 ---
 
 ## 8. WP-CLI Integration
@@ -752,6 +749,33 @@ Create a WP-CLI command for the Posts Maintenance functionality:
 - Include usage examples in your implementation
 
 **Example usage should be documented clearly**
+
+##### Answer – WP-CLI Integration
+
+- **Command Registration (`app/cli/class-posts-maintenance-command.php`):**
+  - Added a dedicated `wpmudev posts-scan` WP-CLI command (registered in `core/class-loader.php` when `WP_CLI` is available).
+  - Annotated with standard WP-CLI docblocks (options, examples) so `wp help wpmudev posts-scan` shows usage instantly.
+
+- **Feature Parity with Admin Scan:**
+  - Reuses the shared `Posts_Maintenance` service to start the exact same job flow (`start_job( ... , 'cli' )`), ensuring CLI and admin scans behave identically.
+  - Supports `--post_types=<comma,separated,list>` to mirror the UI filters (defaults to the UI’s filterable post types).
+  - Supports `--batch_size=<int>` by temporarily filtering `wpmudev_posts_scan_batch_size`, allowing per-command overrides without touching global configs.
+
+- **Progress Output & Completion Summary:**
+  - Uses `WP_CLI\Utils\make_progress_bar()` to display real-time progress as each batch is processed.
+  - Loops over `handle_process_event()` until the queue finishes, so CLI executions run to completion without waiting for cron.
+  - Prints the final summary using the recorded `wpmudev_posts_scan_last_run` data (processed count, total, timestamp).
+
+- **Error Handling & Messaging:**
+  - Validates batch size boundaries (1–200) and sanitizes post types.
+  - Surface service-level validation errors (e.g., existing job running, invalid post types) via `WP_CLI::error()` for immediate feedback.
+  - Logs the selected post types and total count before processing to make CLI logs self-explanatory.
+
+- **Usage Examples (documented in the command class and help text):**
+  - `wp wpmudev posts-scan` – runs the default scan (posts + pages).
+  - `wp wpmudev posts-scan --post_types=product,docs --batch_size=10` – custom post types with smaller batches.
+
+This integration provides a fully documented, scriptable counterpart to the admin UI, enabling automation, CI checks, or bulk maintenance jobs directly from the command line while reusing the exact same scanning logic.
 
 ---
 

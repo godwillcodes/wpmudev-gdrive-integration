@@ -97,5 +97,9 @@ final class Loader extends Base {
 		App\Admin_Pages\Posts_Maintenance::instance()->init();
 		Endpoints\V1\Drive_API::instance()->init();
 		App\Endpoints\V1\Posts_Maintenance::instance()->init();
+
+		if ( defined( 'WP_CLI' ) && WP_CLI ) {
+			App\CLI\Posts_Maintenance_Command::register();
+		}
 	}
 }
