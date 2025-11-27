@@ -181,6 +181,27 @@ class Drive_API extends Base {
 				'permission_callback' => function () {
 					return current_user_can( 'manage_options' );
 				},
+				'args'                => array(
+					'page_size'  => array(
+						'type'              => 'integer',
+						'required'          => false,
+						'default'           => 20,
+						'sanitize_callback' => 'absint',
+						'validate_callback' => function ( $param ) {
+							return $param >= 1 && $param <= 1000;
+						},
+					),
+					'page_token' => array(
+						'type'              => 'string',
+						'required'          => false,
+						'sanitize_callback' => 'sanitize_text_field',
+					),
+					'query'      => array(
+						'type'              => 'string',
+						'required'          => false,
+						'sanitize_callback' => 'sanitize_text_field',
+					),
+				),
 			)
 		);
 
@@ -712,41 +733,138 @@ class Drive_API extends Base {
 
 	/**
 	 * List files in Google Drive.
+	 *
+	 * @param WP_REST_Request $request Request instance.
+	 *
+	 * @return WP_REST_Response|WP_Error
 	 */
-	public function list_files() {
+	public function list_files( WP_REST_Request $request ) {
 		if ( ! $this->ensure_valid_token() ) {
-			return new WP_Error( 'no_access_token', 'Not authenticated with Google Drive', array( 'status' => 401 ) );
+			return new WP_Error(
+				'no_access_token',
+				__( 'Not authenticated with Google Drive. Please authenticate first.', 'wpmudev-plugin-test' ),
+				array( 'status' => 401 )
+			);
 		}
 
 		try {
-			$page_size = 20; // This should be an input parameter not static value 20.
-			$query     = 'trashed=false'; // This should be an input parameter not static value.
+			// Get pagination parameters from request.
+			$page_size = $request->get_param( 'page_size' );
+			$page_token = $request->get_param( 'page_token' );
+			$query = $request->get_param( 'query' );
 
+			// Validate and set default page size (between 1 and 1000, default 20).
+			if ( ! empty( $page_size ) ) {
+				$page_size = absint( $page_size );
+				if ( $page_size < 1 ) {
+					$page_size = 1;
+				} elseif ( $page_size > 1000 ) {
+					$page_size = 1000;
+				}
+			} else {
+				$page_size = 20; // Default page size.
+			}
+
+			// Default query: exclude trashed files.
+			if ( empty( $query ) ) {
+				$query = 'trashed=false';
+			} else {
+				// Sanitize query parameter.
+				$query = sanitize_text_field( $query );
+			}
+
+			// Build options array for Google Drive API.
 			$options = array(
 				'pageSize' => $page_size,
 				'q'        => $query,
-				'fields'   => 'files(id,name,mimeType,size,modifiedTime,webViewLink)',
+				'fields'   => 'nextPageToken,files(id,name,mimeType,size,modifiedTime,webViewLink)',
 			);
 
+			// Add page token if provided (for pagination).
+			if ( ! empty( $page_token ) ) {
+				$page_token = sanitize_text_field( $page_token );
+				$options['pageToken'] = $page_token;
+			}
+
+			// Fetch files from Google Drive API.
 			$results = $this->drive_service->files->listFiles( $options );
 			$files   = $results->getFiles();
 
+			// Format file data for response.
 			$file_list = array();
-			foreach ( $files as $file ) {
-				$file_list[] = array(
-					'id'           => $file->getId(),
-					'name'         => $file->getName(),
-					'mimeType'     => $file->getMimeType(),
-					'size'         => $file->getSize(),
-					'modifiedTime' => $file->getModifiedTime(),
-					'webViewLink'  => $file->getWebViewLink(),
-				);
+			if ( ! empty( $files ) ) {
+				foreach ( $files as $file ) {
+					$file_list[] = array(
+						'id'           => $file->getId(),
+						'name'         => $file->getName(),
+						'mimeType'     => $file->getMimeType(),
+						'size'         => $file->getSize(),
+						'modifiedTime' => $file->getModifiedTime(),
+						'webViewLink'  => $file->getWebViewLink(),
+					);
+				}
 			}
 
-			return $file_list;
+			// Get next page token if available.
+			$next_page_token = $results->getNextPageToken();
 
-		} catch ( Exception $e ) {
-			return new WP_Error( 'api_error', $e->getMessage(), array( 'status' => 500 ) );
+			// Return structured response with pagination info.
+			return new WP_REST_Response(
+				array(
+					'files'         => $file_list,
+					'nextPageToken' => $next_page_token,
+					'pageSize'      => $page_size,
+					'hasMore'       => ! empty( $next_page_token ),
+				),
+				200
+			);
+
+		} catch ( \Google_Service_Exception $e ) {
+			// Handle Google API specific errors.
+			$error_message = $e->getMessage();
+			$errors = $e->getErrors();
+			
+			if ( ! empty( $errors ) && is_array( $errors ) ) {
+				$error_details = array();
+				foreach ( $errors as $error ) {
+					if ( isset( $error['message'] ) ) {
+						$error_details[] = $error['message'];
+					}
+				}
+				if ( ! empty( $error_details ) ) {
+					$error_message = implode( ', ', $error_details );
+				}
+			}
+
+			if ( function_exists( 'error_log' ) ) {
+				error_log( sprintf( 'WPMUDEV Drive: Files list API error: %s', $error_message ) );
+			}
+
+			return new WP_Error(
+				'api_error',
+				sprintf(
+					/* translators: %s: Error message */
+					__( 'Failed to fetch files from Google Drive: %s', 'wpmudev-plugin-test' ),
+					$error_message
+				),
+				array( 'status' => 500 )
+			);
+
+		} catch ( \Exception $e ) {
+			// Handle general exceptions.
+			if ( function_exists( 'error_log' ) ) {
+				error_log( sprintf( 'WPMUDEV Drive: Files list exception: %s', $e->getMessage() ) );
+			}
+
+			return new WP_Error(
+				'api_error',
+				sprintf(
+					/* translators: %s: Error message */
+					__( 'An error occurred while fetching files: %s', 'wpmudev-plugin-test' ),
+					$e->getMessage()
+				),
+				array( 'status' => 500 )
+			);
 		}
 	}
 

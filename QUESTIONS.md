@@ -313,6 +313,67 @@ Complete the REST API endpoint `/wp-json/wpmudev/v1/drive/save-credentials`:
 - Return appropriate success/error responses
 - Include proper authentication and permission checks
 
+##### Answer – Credentials Storage Endpoint Implementation
+
+- **Route Registration (`register_routes()` method):**
+  - Endpoint registered at `/wp-json/wpmudev/v1/drive/save-credentials` with `POST` method.
+  - **Permission Check:** `permission_callback` requires `manage_options` capability, ensuring only administrators can save credentials.
+  - **Argument Validation:**
+    - Both `client_id` and `client_secret` are marked as `required => true`.
+    - Both use `sanitize_text_field` as `sanitize_callback` to remove potentially dangerous characters and ensure string type.
+    - WordPress REST API automatically validates required fields and applies sanitization before the callback is executed.
+
+- **Request Validation and Sanitization (`save_credentials()` method):**
+  - **Input Retrieval:** Parameters retrieved using `$request->get_param()` with explicit type casting to string.
+  - **Additional Sanitization:** Both values are trimmed using `trim()` to remove leading/trailing whitespace.
+  - **Validation:**
+    - Checks that both `client_id` and `client_secret` are non-empty after trimming.
+    - Returns `WP_Error` with HTTP 400 status code and translated error message if validation fails.
+    - Error code: `invalid_credentials` for clear identification.
+
+- **Secure Storage:**
+  - **Encryption:** Client secret is encrypted using `encrypt_secret()` method before storage:
+    - Uses AES-256-CBC encryption with OpenSSL.
+    - Encryption key derived from `wp_salt('secure_auth')` using SHA-256 hashing.
+    - Initialization vector (IV) derived from `wp_salt('auth')` for additional security.
+    - Encrypted value prefixed with `wpmudev_encrypted:` for identification.
+    - Graceful fallback: If OpenSSL is unavailable, stores as-is (with logging).
+  - **Storage:** Credentials stored in WordPress option `wpmudev_plugin_tests_auth` using `update_option()`.
+  - **Client ID:** Stored as plain text (not sensitive, publicly visible in OAuth flow).
+  - **Client Secret:** Always encrypted before storage (sensitive credential).
+
+- **Response Handling:**
+  - **Success Response:**
+    - Returns `WP_REST_Response` with HTTP 200 status (default).
+    - Structured response: `{ success: true, data: { hasCredentials: true } }`.
+    - Allows frontend to update UI state accordingly.
+  - **Error Response:**
+    - Returns `WP_Error` with appropriate HTTP status codes:
+      - `400` for validation errors (missing/invalid credentials).
+      - Includes translated error messages for user-friendly feedback.
+      - Error codes for programmatic error handling.
+
+- **Security Features:**
+  - **Authentication:** REST API nonce verification handled by WordPress core (frontend sends `X-WP-Nonce` header).
+  - **Authorization:** `manage_options` capability check ensures only site administrators can access.
+  - **Input Sanitization:** Multiple layers:
+    - WordPress REST API `sanitize_callback` (removes dangerous characters).
+    - Explicit `trim()` to remove whitespace.
+    - Type casting to ensure string type.
+  - **Data Protection:** Client secret encrypted at rest in database.
+  - **Reinitialization:** Google Client reinitialized after credential save to ensure immediate availability.
+
+- **Error Handling:**
+  - Comprehensive validation with clear error messages.
+  - Proper HTTP status codes for different error scenarios.
+  - Translated error messages using WordPress i18n functions.
+  - Graceful handling of encryption failures (logs error, stores as-is if OpenSSL unavailable).
+
+- **Integration:**
+  - **Frontend Integration:** React component sends credentials via `POST` request with proper headers.
+  - **Backend Integration:** After successful save, Google Client is reinitialized via `setup_google_client()`.
+  - **State Management:** Response includes `hasCredentials: true` for frontend state updates.
+
 ---
 
 ## 4. Backend: Google Drive Authentication
@@ -322,6 +383,156 @@ Implement the complete OAuth 2.0 authentication flow:
 - Implement token storage and refresh functionality
 - Ensure proper error handling throughout the flow
 
+##### Answer – Google Drive Authentication Implementation
+
+- **OAuth 2.0 Scope Configuration:**
+  - **Scopes Defined:** In `app/endpoints/v1/class-googledrive-rest.php`, scopes are defined as class property (lines 55-58):
+    - `Google_Service_Drive::DRIVE_FILE` - Maps to `https://www.googleapis.com/auth/drive.file`
+    - `Google_Service_Drive::DRIVE_READONLY` - Maps to `https://www.googleapis.com/auth/drive.readonly`
+  - **Client Configuration:** Scopes are set on Google Client during initialization (line 108):
+    - `$this->client->setScopes( $this->scopes )`
+    - Ensures all authorization URLs include required scopes automatically
+  - **Access Type:** Configured for offline access (line 109):
+    - `$this->client->setAccessType( 'offline' )` - Enables refresh token issuance
+    - `$this->client->setPrompt( 'consent' )` - Forces consent screen to ensure refresh token
+
+- **Authorization URL Generation (`start_auth()` method):**
+  - **Endpoint:** `/wp-json/wpmudev/v1/drive/auth` (POST method)
+  - **Permission Check:** Requires `manage_options` capability (line 157-159)
+  - **Validation:**
+    - Checks if Google Client is configured (line 375)
+    - Returns `WP_Error` with HTTP 400 if credentials missing
+  - **CSRF Protection:**
+    - Generates random 32-character state token using `wp_generate_password( 32, false )` (line 385)
+    - Stores state token in user-specific transient with 10-minute expiration (lines 390-394)
+    - Sets state parameter on Google Client (line 397)
+    - Prevents cross-site request forgery attacks
+  - **URL Generation:**
+    - Uses `$this->client->createAuthUrl()` to generate OAuth authorization URL (line 400)
+    - URL automatically includes configured scopes, redirect URI, and state parameter
+  - **Response:**
+    - Returns `WP_REST_Response` with `success: true` and `auth_url` (lines 402-408)
+    - Includes comprehensive error handling with try-catch and translated error messages (lines 409-418)
+
+- **OAuth Callback Handling (`handle_callback()` method):**
+  - **Endpoint:** `/wp-json/wpmudev/v1/drive/callback` (GET method, public endpoint)
+  - **CSRF Protection (State Validation):**
+    - **State Parameter Validation:**
+      - Checks if state parameter is present (line 436)
+      - Validates state format (32 alphanumeric characters) using regex (line 455)
+      - Queries database to find matching transient using proper SQL LIKE pattern (lines 475-485)
+      - Validates state exists in stored transients (line 487)
+      - Deletes used state token immediately after validation to prevent replay attacks (lines 505-507)
+    - **Security Features:**
+      - User-specific state tokens prevent cross-user attacks
+      - 10-minute expiration prevents stale tokens
+      - Proper SQL escaping using `$wpdb->esc_like()` and `prepare()`
+      - Clear error messages for security validation failures
+  - **OAuth Error Handling:**
+    - Checks for `error` parameter from Google (line 510)
+    - Extracts `error_description` if available (line 511)
+    - Redirects to admin page with error message in URL parameters (lines 513-525)
+  - **Authorization Code Validation:**
+    - Validates authorization code is present (line 529)
+    - Validates Google Client is configured (line 545)
+    - Returns appropriate error redirects for missing data
+  - **Token Exchange:**
+    - Exchanges authorization code for access token using `$this->client->fetchAccessTokenWithAuthCode( $code )` (line 563)
+    - Checks for errors in token response (line 566)
+    - Handles token exchange failures with proper error messages
+  - **Token Storage:**
+    - Stores access token array in `wpmudev_drive_access_token` option (line 587)
+    - Stores refresh token separately in `wpmudev_drive_refresh_token` option if provided (lines 590-592)
+    - Stores token expiration time in `wpmudev_drive_token_expires` option (lines 596-603):
+      - Prefers `expires_in` (seconds until expiration)
+      - Falls back to `expires` (timestamp) if `expires_in` not available
+    - Updates Google Drive service instance with new token (line 606)
+  - **Success Redirect:**
+    - Redirects to admin page with `auth=success` parameter (lines 609-620)
+    - Frontend detects success and updates UI accordingly
+  - **Exception Handling:**
+    - Comprehensive try-catch block (lines 561-640)
+    - Catches all exceptions during token exchange
+    - Redirects with error message for any failures
+
+- **Token Storage and Refresh Functionality (`ensure_valid_token()` method):**
+  - **Automatic Token Refresh:**
+    - Called before any Google Drive API operation
+    - Checks if current access token is expired using `$this->client->isAccessTokenExpired()` (line 656)
+    - Retrieves stored refresh token from `wpmudev_drive_refresh_token` option (line 657)
+  - **Refresh Process:**
+    - Uses `$this->client->fetchAccessTokenWithRefreshToken( $refresh_token )` (line 664)
+    - Validates refresh token response for errors (line 666)
+    - Logs refresh failures for debugging (lines 667-674)
+  - **Token Update:**
+    - Stores new access token array (line 680)
+    - Updates refresh token if new one provided (some providers issue new refresh tokens) (lines 683-685)
+    - Updates expiration time using same logic as initial token storage (lines 689-696)
+    - Updates Google Drive service instance with new token (line 699)
+  - **Error Handling:**
+    - Returns `false` if refresh fails (allows API operations to fail gracefully)
+    - Logs exceptions for debugging (lines 703-705)
+    - Handles missing refresh token gracefully
+
+- **Error Handling Throughout the Flow:**
+  - **Authorization URL Generation:**
+    - Validates credentials exist before generating URL
+    - Try-catch block catches exceptions during URL generation
+    - Returns `WP_Error` with HTTP 500 status and translated error message
+  - **OAuth Callback:**
+    - **State Validation Errors:**
+      - Missing state parameter
+      - Invalid state format
+      - State not found in transients (expired or CSRF attack)
+      - All redirect with clear, translated error messages
+    - **OAuth Errors from Google:**
+      - User denial (`access_denied`)
+      - Invalid request (`invalid_request`)
+      - Invalid scope (`invalid_scope`)
+      - All handled with user-friendly error messages
+    - **Token Exchange Errors:**
+      - Missing authorization code
+      - Invalid authorization code
+      - Token exchange failures
+      - All handled with proper error redirects
+    - **Exception Handling:**
+      - Comprehensive try-catch for all token operations
+      - Logs errors for debugging
+      - Provides user-friendly error messages
+  - **Token Refresh:**
+    - Handles expired refresh tokens
+    - Handles missing refresh tokens
+    - Handles network errors during refresh
+    - Logs all failures for debugging
+    - Returns `false` to allow graceful API operation failures
+
+- **Security Features:**
+  - **CSRF Protection:**
+    - State parameter validation prevents cross-site request forgery
+    - User-specific state tokens prevent cross-user attacks
+    - State tokens expire after 10 minutes
+    - Used state tokens deleted immediately to prevent replay attacks
+  - **Input Validation:**
+    - State parameter format validation (regex)
+    - Authorization code presence validation
+    - Proper SQL escaping for database queries
+  - **Error Messages:**
+    - Security errors don't reveal sensitive information
+    - User-friendly error messages for legitimate failures
+    - Detailed error logging for debugging (server-side only)
+
+- **Integration Points:**
+  - **Frontend Integration:**
+    - Frontend calls `/auth` endpoint to get authorization URL
+    - Redirects user to Google OAuth consent screen
+    - Google redirects back to `/callback` endpoint
+    - Frontend detects success/error via URL parameters
+  - **WordPress Integration:**
+    - Uses WordPress transients for state token storage
+    - Uses WordPress options for token storage
+    - Uses WordPress redirect functions for callback handling
+    - Follows WordPress coding standards throughout
+
 ---
 
 ## 5. Backend: Files List API
@@ -330,6 +541,104 @@ Create the functionality to fetch and return Google Drive files:
 - Return properly formatted file information
 - Include pagination support
 - Handle API errors gracefully
+
+##### Answer – Files List API Implementation
+
+- **Route Registration (`register_routes()` method):**
+  - Endpoint registered at `/wp-json/wpmudev/v1/drive/files` with `GET` method.
+  - **Permission Check:** `permission_callback` requires `manage_options` capability, ensuring only administrators can access.
+  - **Request Parameters:**
+    - `page_size` (optional, integer): Number of files per page (1-1000, default: 20)
+      - Validated with `validate_callback` to ensure range 1-1000
+      - Sanitized with `absint` to ensure positive integer
+    - `page_token` (optional, string): Token for pagination (next page)
+      - Sanitized with `sanitize_text_field`
+    - `query` (optional, string): Google Drive query string for filtering files
+      - Sanitized with `sanitize_text_field`
+      - Default: `trashed=false` (excludes trashed files)
+
+- **Connect to Google Drive API (`list_files()` method):**
+  - **Authentication Check:**
+    - Calls `ensure_valid_token()` to verify valid access token (line 717)
+    - Automatically refreshes expired tokens if refresh token available
+    - Returns `WP_Error` with HTTP 401 if not authenticated (line 718)
+  - **Google Drive Service:**
+    - Uses `$this->drive_service` (Google_Service_Drive instance)
+    - Service initialized with authenticated Google Client
+    - Client configured with stored credentials and valid access token
+
+- **Return Properly Formatted File Information:**
+  - **API Request:**
+    - Builds options array with `pageSize`, `q` (query), `fields`, and optional `pageToken` (lines 725-738)
+    - Uses Google Drive API `listFiles()` method (line 740)
+    - Requests specific fields: `id`, `name`, `mimeType`, `size`, `modifiedTime`, `webViewLink`
+  - **Response Formatting:**
+    - Extracts files from API response (line 741)
+    - Formats each file into structured array (lines 744-752):
+      - `id`: File ID (string)
+      - `name`: File name (string)
+      - `mimeType`: MIME type (string, e.g., `application/vnd.google-apps.folder`)
+      - `size`: File size in bytes (integer, null for folders)
+      - `modifiedTime`: Last modified timestamp (string, ISO 8601 format)
+      - `webViewLink`: URL to view file in Google Drive (string)
+    - Returns empty array if no files found
+  - **Response Structure:**
+    - Returns `WP_REST_Response` with structured data:
+      - `files`: Array of formatted file objects
+      - `nextPageToken`: Token for next page (if available)
+      - `pageSize`: Number of files per page
+      - `hasMore`: Boolean indicating if more pages available
+
+- **Pagination Support:**
+  - **Page Size:**
+    - Accepts `page_size` parameter from request (line 722)
+    - Validates range: 1-1000 files per page
+    - Default: 20 files per page
+    - Clamps invalid values to valid range
+  - **Page Token:**
+    - Accepts `page_token` parameter for pagination (line 723)
+    - Passes token to Google Drive API `pageToken` option (line 737)
+    - Returns `nextPageToken` in response if more pages available (line 755)
+  - **Pagination Response:**
+    - Includes `nextPageToken` in response for frontend to request next page
+    - Includes `hasMore` boolean for easy pagination UI
+    - Includes `pageSize` to confirm current page size
+  - **Query Parameter:**
+    - Accepts custom `query` parameter for filtering (line 724)
+    - Default query: `trashed=false` (excludes trashed files)
+    - Supports Google Drive query syntax (e.g., `mimeType='application/vnd.google-apps.folder'`)
+
+- **Error Handling:**
+  - **Authentication Errors:**
+    - Returns `WP_Error` with HTTP 401 if not authenticated
+    - Translated error message: "Not authenticated with Google Drive. Please authenticate first."
+  - **Google API Errors:**
+    - Catches `Google_Service_Exception` specifically (line 759)
+    - Extracts error messages from Google API error response
+    - Handles multiple errors if present
+    - Logs errors to error log for debugging (line 777)
+    - Returns `WP_Error` with HTTP 500 and user-friendly, translated error message
+  - **General Exceptions:**
+    - Catches all `\Exception` types (line 789)
+    - Logs exceptions to error log for debugging (line 791)
+    - Returns `WP_Error` with HTTP 500 and translated error message
+  - **Error Logging:**
+    - All errors logged to WordPress error log with context
+    - Includes error type and message for debugging
+    - Helps diagnose API issues without exposing details to users
+
+- **Security Features:**
+  - **Permission Check:** Only administrators can access endpoint
+  - **Input Sanitization:** All parameters sanitized before use
+  - **Input Validation:** Page size validated to prevent abuse (max 1000)
+  - **Query Sanitization:** Custom queries sanitized to prevent injection
+  - **Token Validation:** Ensures valid authentication before API calls
+
+- **Integration:**
+  - **Frontend Integration:** React component calls endpoint and handles pagination response
+  - **Backward Compatibility:** Handles both new pagination format and legacy array format
+  - **WordPress Standards:** Follows WordPress REST API best practices
+  - **Google API Standards:** Follows Google Drive API v3 specifications
 
 ---
 

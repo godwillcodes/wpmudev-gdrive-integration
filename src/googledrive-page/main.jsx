@@ -261,8 +261,8 @@ const WPMUDEV_DriveTest = () => {
                 return;
             }
 
-            // Handle both array and WP_REST_Response format
-            const fileList = Array.isArray(data) ? data : (data?.data || []);
+            // Handle response format (new format with pagination or legacy array format)
+            const fileList = data?.files || (Array.isArray(data) ? data : (data?.data || []));
             setFiles(fileList);
         } catch (error) {
             showNotice(
