@@ -130,51 +130,82 @@ class Posts_Maintenance extends Base {
 	 */
 	public function render_page() {
 		?>
-		<div class="sui-wrap">
+		<div class="sui-wrap wpmudev-posts-maintenance-wrap">
 			<div class="sui-header">
 				<h1 class="sui-header-title"><?php esc_html_e( 'Posts Maintenance', 'wpmudev-plugin-test' ); ?></h1>
-				<div class="sui-actions-right">
-					<button type="button" class="sui-button sui-button-ghost" id="<?php echo esc_attr( $this->wrapper_id ); ?>-refresh">
-						<span class="sui-icon-update" aria-hidden="true"></span> <?php esc_html_e( 'Refresh Status', 'wpmudev-plugin-test' ); ?>
-					</button>
-				</div>
 			</div>
 
-			<div class="sui-box">
-				<div class="sui-box-header">
-					<h2 class="sui-box-title"><?php esc_html_e( 'Scan Options', 'wpmudev-plugin-test' ); ?></h2>
-				</div>
-				<div class="sui-box-body">
-					<p><?php esc_html_e( 'Scan your published posts and pages to stamp the latest maintenance timestamp. Choose which post types to include and launch the process in the background.', 'wpmudev-plugin-test' ); ?></p>
-
-					<div class="sui-form-field">
-						<label class="sui-label"><?php esc_html_e( 'Post types to scan', 'wpmudev-plugin-test' ); ?></label>
-						<div class="wpmudev-post-types-list" id="<?php echo esc_attr( $this->wrapper_id ); ?>-post-types"></div>
+			<div class="wpmudev-posts-maintenance-grid">
+				<!-- Scan Configuration Pane -->
+				<div class="sui-box wpmudev-posts-panel wpmudev-posts-panel--config">
+					<div class="sui-box-header">
+						<h2 class="sui-box-title">
+							<?php esc_html_e( 'Scan Configuration', 'wpmudev-plugin-test' ); ?>
+						</h2>
+						<p class="sui-description">
+							<?php esc_html_e( 'Select post types to scan and update maintenance timestamps.', 'wpmudev-plugin-test' ); ?>
+						</p>
 					</div>
-
-					<button type="button" class="sui-button sui-button-blue" id="<?php echo esc_attr( $this->wrapper_id ); ?>-start">
-						<span class="sui-icon-play" aria-hidden="true"></span> <?php esc_html_e( 'Scan Posts', 'wpmudev-plugin-test' ); ?>
-					</button>
-				</div>
-			</div>
-
-			<div class="sui-box">
-				<div class="sui-box-header">
-					<h2 class="sui-box-title"><?php esc_html_e( 'Progress', 'wpmudev-plugin-test' ); ?></h2>
-				</div>
-				<div class="sui-box-body">
-					<div class="wpmudev-progress-wrapper">
-						<div class="wpmudev-progress-bar" id="<?php echo esc_attr( $this->wrapper_id ); ?>-progress-bar">
-							<span></span>
+					<div class="sui-box-body">
+						<div class="sui-box-settings-row">
+							<label class="sui-label"><?php esc_html_e( 'Post Types', 'wpmudev-plugin-test' ); ?></label>
+							<div class="wpmudev-post-types-list" id="<?php echo esc_attr( $this->wrapper_id ); ?>-post-types"></div>
 						</div>
-						<div class="wpmudev-progress-meta">
-							<strong id="<?php echo esc_attr( $this->wrapper_id ); ?>-progress-text"><?php esc_html_e( 'No active scan.', 'wpmudev-plugin-test' ); ?></strong>
-							<p id="<?php echo esc_attr( $this->wrapper_id ); ?>-counts" class="sui-description"></p>
+					</div>
+					<div class="sui-box-footer">
+						<div class="sui-actions-right">
+							<button type="button" class="sui-button sui-button-blue" id="<?php echo esc_attr( $this->wrapper_id ); ?>-start">
+								<?php esc_html_e( 'Start Scan', 'wpmudev-plugin-test' ); ?>
+							</button>
 						</div>
 					</div>
 				</div>
-				<div class="sui-box-footer">
-					<p class="sui-description" id="<?php echo esc_attr( $this->wrapper_id ); ?>-last-run"></p>
+
+				<!-- Scan Progress Pane -->
+				<div class="sui-box wpmudev-posts-panel wpmudev-posts-panel--progress">
+					<div class="sui-box-header">
+						<h2 class="sui-box-title">
+							<?php esc_html_e( 'Scan Progress', 'wpmudev-plugin-test' ); ?>
+						</h2>
+						<p class="sui-description">
+							<?php esc_html_e( 'Monitor the current scan operation in real-time.', 'wpmudev-plugin-test' ); ?>
+						</p>
+					</div>
+					<div class="sui-box-body">
+						<div class="wpmudev-progress-wrapper">
+							<div class="wpmudev-progress-bar" id="<?php echo esc_attr( $this->wrapper_id ); ?>-progress-bar">
+								<span></span>
+							</div>
+							<div class="wpmudev-progress-meta">
+								<strong id="<?php echo esc_attr( $this->wrapper_id ); ?>-progress-text"><?php esc_html_e( 'No active scan.', 'wpmudev-plugin-test' ); ?></strong>
+								<p id="<?php echo esc_attr( $this->wrapper_id ); ?>-counts" class="sui-description"></p>
+							</div>
+						</div>
+					</div>
+					<div class="sui-box-footer">
+						<div class="sui-actions-right">
+							<button type="button" class="sui-button sui-button-ghost" id="<?php echo esc_attr( $this->wrapper_id ); ?>-refresh">
+								<?php esc_html_e( 'Refresh Status', 'wpmudev-plugin-test' ); ?>
+							</button>
+						</div>
+					</div>
+				</div>
+
+				<!-- Last Run Summary Pane -->
+				<div class="sui-box wpmudev-posts-panel wpmudev-posts-panel--summary">
+					<div class="sui-box-header">
+						<h2 class="sui-box-title">
+							<?php esc_html_e( 'Last Run Summary', 'wpmudev-plugin-test' ); ?>
+						</h2>
+						<p class="sui-description">
+							<?php esc_html_e( 'View details from the most recent scan operation.', 'wpmudev-plugin-test' ); ?>
+						</p>
+					</div>
+					<div class="sui-box-body">
+						<div class="wpmudev-summary-content" id="<?php echo esc_attr( $this->wrapper_id ); ?>-last-run">
+							<p class="sui-description"><?php esc_html_e( 'No previous scan recorded.', 'wpmudev-plugin-test' ); ?></p>
+						</div>
+					</div>
 				</div>
 			</div>
 
