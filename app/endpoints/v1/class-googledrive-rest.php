@@ -753,7 +753,7 @@ class Drive_API extends Base {
 			$page_token = $request->get_param( 'page_token' );
 			$query = $request->get_param( 'query' );
 
-			// Validate and set default page size (between 1 and 1000, default 20).
+			// Validate and set default page size (between 1 and 1000, default 10).
 			if ( ! empty( $page_size ) ) {
 				$page_size = absint( $page_size );
 				if ( $page_size < 1 ) {
@@ -762,7 +762,7 @@ class Drive_API extends Base {
 					$page_size = 1000;
 				}
 			} else {
-				$page_size = 20; // Default page size.
+				$page_size = 10; // Default page size.
 			}
 
 			// Default query: exclude trashed files.

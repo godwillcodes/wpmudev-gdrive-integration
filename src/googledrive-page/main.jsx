@@ -95,6 +95,11 @@ const WPMUDEV_DriveTest = () => {
         clientId: '',
         clientSecret: ''
     });
+    // Pagination state
+    const [nextPageToken, setNextPageToken] = useState(null);
+    const [pageTokenHistory, setPageTokenHistory] = useState([]); // Array of tokens: [null, token1, token2, ...] where index = page number
+    const [currentPage, setCurrentPage] = useState(1);
+    const [hasMore, setHasMore] = useState(false);
 
     // Memoize showNotice to prevent stale closures in useEffect.
     const showNotice = useCallback((message, type = 'success') => {
@@ -271,18 +276,23 @@ const WPMUDEV_DriveTest = () => {
         }
     };
 
-    const loadFiles = async () => {
+    const loadFiles = async (pageToken = null, isNextPage = false) => {
         try {
             setIsLoading(true);
-            const response = await fetch(
-                `${window.location.origin}/wp-json/${window.wpmudevDriveTest.restEndpointFiles}`,
-                {
-                    method: 'GET',
-                    headers: {
-                        'X-WP-Nonce': window.wpmudevDriveTest.nonce,
-                    },
-                }
-            );
+            
+            // Build URL with pagination parameters
+            const url = new URL(`${window.location.origin}/wp-json/${window.wpmudevDriveTest.restEndpointFiles}`);
+            url.searchParams.set('page_size', '10'); // Set page size to 10
+            if (pageToken) {
+                url.searchParams.set('page_token', pageToken);
+            }
+
+            const response = await fetch(url.toString(), {
+                method: 'GET',
+                headers: {
+                    'X-WP-Nonce': window.wpmudevDriveTest.nonce,
+                },
+            });
 
             const data = await response.json();
 
@@ -298,6 +308,30 @@ const WPMUDEV_DriveTest = () => {
             // Handle response format (new format with pagination or legacy array format)
             const fileList = data?.files || (Array.isArray(data) ? data : (data?.data || []));
             setFiles(fileList);
+            
+            // Update pagination state
+            const newNextToken = data?.nextPageToken || null;
+            setNextPageToken(newNextToken);
+            setHasMore(data?.hasMore || !!newNextToken);
+            
+            // Update page tracking
+            if (isNextPage && pageToken) {
+                // Going forward - store the token we just used for the page we're now on
+                setPageTokenHistory(prev => {
+                    const newHistory = [...prev];
+                    // Ensure array is long enough (index 0 = page 1, index 1 = page 2, etc.)
+                    while (newHistory.length < currentPage + 1) {
+                        newHistory.push(null);
+                    }
+                    newHistory[currentPage] = pageToken; // Store token that loads this page
+                    return newHistory;
+                });
+                setCurrentPage(prev => prev + 1);
+            } else if (!pageToken) {
+                // Resetting to first page
+                setPageTokenHistory([null]); // First page (index 0) has no token
+                setCurrentPage(1);
+            }
         } catch (error) {
             showNotice(
                 __('An unexpected error occurred while loading files.', 'wpmudev-plugin-test'),
@@ -305,6 +339,25 @@ const WPMUDEV_DriveTest = () => {
             );
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    const loadNextPage = () => {
+        if (nextPageToken && hasMore) {
+            loadFiles(nextPageToken, true);
+        }
+    };
+
+    const loadPreviousPage = () => {
+        if (currentPage > 1) {
+            const prevPage = currentPage - 1;
+            const prevToken = pageTokenHistory[prevPage] || null;
+            setCurrentPage(prevPage);
+            loadFiles(prevToken, false);
+        } else {
+            // Already on first page
+            setCurrentPage(1);
+            loadFiles(null, false);
         }
     };
 
@@ -365,8 +418,8 @@ const WPMUDEV_DriveTest = () => {
                             'success'
                         );
 
-                        // Automatically refresh file list
-                        await loadFiles();
+                        // Automatically refresh file list (reset to first page)
+                        await loadFiles(null, false);
                         setIsLoading(false);
                         setUploadProgress(0);
                         resolve(data);
@@ -525,7 +578,7 @@ const WPMUDEV_DriveTest = () => {
             );
 
             // Automatically refresh file list
-            await loadFiles();
+            await loadFiles(null, false); // Reset to first page after folder creation
         } catch (error) {
             showNotice(
                 __('An unexpected error occurred while creating the folder.', 'wpmudev-plugin-test'),
@@ -539,7 +592,7 @@ const WPMUDEV_DriveTest = () => {
     // Load files when authenticated
     useEffect(() => {
         if (isAuthenticated) {
-            loadFiles();
+            loadFiles(null, false); // Load first page
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isAuthenticated]); // Only run when authentication status changes
@@ -960,6 +1013,66 @@ const WPMUDEV_DriveTest = () => {
                                             })}
                                         </tbody>
                                     </table>
+                                    
+                                    {/* Pagination Controls */}
+                                    {(hasMore || currentPage > 1) && (
+                                        <div className="wpmudev-drive-pagination" style={{ 
+                                            display: 'flex', 
+                                            justifyContent: 'space-between', 
+                                            alignItems: 'center',
+                                            marginTop: '20px',
+                                            padding: '16px',
+                                            borderTop: '1px solid #e5e7eb'
+                                        }}>
+                                            <div className="wpmudev-drive-pagination-info" style={{
+                                                fontFamily: "'DM Sans', sans-serif",
+                                                fontSize: '14px',
+                                                color: '#6b7280'
+                                            }}>
+                                                {__('Page', 'wpmudev-plugin-test')} {currentPage} • {files.length} {__('items', 'wpmudev-plugin-test')}
+                                            </div>
+                                            <div className="wpmudev-drive-pagination-buttons" style={{
+                                                display: 'flex',
+                                                gap: '12px',
+                                                alignItems: 'center'
+                                            }}>
+                                                <Button
+                                                    variant="secondary"
+                                                    onClick={loadPreviousPage}
+                                                    disabled={isLoading || currentPage === 1}
+                                                    style={{
+                                                        backgroundColor: currentPage === 1 ? '#f3f4f6' : 'transparent',
+                                                        border: '2px solid #000000',
+                                                        color: currentPage === 1 ? '#9ca3af' : '#000000',
+                                                        fontFamily: "'DM Sans', sans-serif",
+                                                        fontWeight: 600,
+                                                        padding: '8px 16px',
+                                                        borderRadius: '6px',
+                                                        cursor: currentPage === 1 ? 'not-allowed' : 'pointer'
+                                                    }}
+                                                >
+                                                    {__('Previous', 'wpmudev-plugin-test')}
+                                                </Button>
+                                                <Button
+                                                    variant="primary"
+                                                    onClick={loadNextPage}
+                                                    disabled={isLoading || !hasMore}
+                                                    style={{
+                                                        backgroundColor: !hasMore ? '#666666' : '#000000',
+                                                        border: '2px solid ' + (!hasMore ? '#666666' : '#000000'),
+                                                        color: '#ffffff',
+                                                        fontFamily: "'DM Sans', sans-serif",
+                                                        fontWeight: 600,
+                                                        padding: '8px 16px',
+                                                        borderRadius: '6px',
+                                                        cursor: !hasMore ? 'not-allowed' : 'pointer'
+                                                    }}
+                                                >
+                                                    {__('Next', 'wpmudev-plugin-test')}
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             ) : (
                                 <div className="sui-box-settings-row">
