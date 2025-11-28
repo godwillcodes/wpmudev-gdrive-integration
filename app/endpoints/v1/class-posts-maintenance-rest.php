@@ -66,6 +66,42 @@ class Posts_Maintenance extends Base {
 				},
 			)
 		);
+
+		register_rest_route(
+			'wpmudev/v1/posts-maintenance',
+			'/scan/(?P<scan_id>[a-f0-9\-]+)',
+			array(
+				'methods'             => 'GET',
+				'callback'            => array( $this, 'get_scan' ),
+				'permission_callback' => function () {
+					return current_user_can( 'manage_options' );
+				},
+				'args'                => array(
+					'scan_id' => array(
+						'required' => true,
+						'type'     => 'string',
+					),
+				),
+			)
+		);
+
+		register_rest_route(
+			'wpmudev/v1/posts-maintenance',
+			'/scan/(?P<scan_id>[a-f0-9\-]+)',
+			array(
+				'methods'             => 'DELETE',
+				'callback'            => array( $this, 'delete_scan' ),
+				'permission_callback' => function () {
+					return current_user_can( 'manage_options' );
+				},
+				'args'                => array(
+					'scan_id' => array(
+						'required' => true,
+						'type'     => 'string',
+					),
+				),
+			)
+		);
 	}
 
 	/**
@@ -150,6 +186,57 @@ class Posts_Maintenance extends Base {
 		}
 
 		return $list;
+	}
+
+	/**
+	 * Gets a specific scan record.
+	 *
+	 * @param WP_REST_Request $request Request instance.
+	 *
+	 * @return WP_REST_Response|WP_Error
+	 */
+	public function get_scan( WP_REST_Request $request ) {
+		$scan_id = $request->get_param( 'scan_id' );
+		$service = Posts_Maintenance_Service::instance();
+		$record  = $service->get_scan_record( $scan_id );
+
+		if ( null === $record ) {
+			return new WP_Error(
+				'wpmudev_scan_not_found',
+				__( 'Scan record not found.', 'wpmudev-plugin-test' ),
+				array( 'status' => 404 )
+			);
+		}
+
+		return new WP_REST_Response( $record );
+	}
+
+	/**
+	 * Deletes a scan record.
+	 *
+	 * @param WP_REST_Request $request Request instance.
+	 *
+	 * @return WP_REST_Response|WP_Error
+	 */
+	public function delete_scan( WP_REST_Request $request ) {
+		$scan_id = $request->get_param( 'scan_id' );
+		$service = Posts_Maintenance_Service::instance();
+		$deleted = $service->delete_scan_record( $scan_id );
+
+		if ( ! $deleted ) {
+			return new WP_Error(
+				'wpmudev_scan_delete_failed',
+				__( 'Failed to delete scan record.', 'wpmudev-plugin-test' ),
+				array( 'status' => 400 )
+			);
+		}
+
+		return new WP_REST_Response(
+			array(
+				'success' => true,
+				'message' => __( 'Scan record deleted successfully.', 'wpmudev-plugin-test' ),
+			)
+		);
 	}
 }
 

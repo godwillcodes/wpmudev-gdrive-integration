@@ -24,6 +24,7 @@
 		progressText: document.getElementById(wrapperId + '-progress-text'),
 		counts: document.getElementById(wrapperId + '-counts'),
 		lastRun: document.getElementById(wrapperId + '-last-run'),
+		dashboard: document.getElementById(wrapperId + '-dashboard'),
 		notice: document.getElementById(wrapperId + '-notice'),
 	};
 
@@ -281,6 +282,11 @@
 			}
 		}
 
+		// Update dashboard
+		if (elements.dashboard) {
+			updateDashboard(job, lastRun);
+		}
+
 		// Update button state
 		if (elements.startButton) {
 			if (job && ['pending', 'running'].includes(job.status)) {
@@ -349,6 +355,129 @@
 		const div = document.createElement('div');
 		div.textContent = text;
 		return div.innerHTML;
+	}
+
+	/**
+	 * Update dashboard with metrics
+	 */
+	function updateDashboard(job, lastRun) {
+		if (!elements.dashboard) {
+			return;
+		}
+
+		// Use metrics from job if available, otherwise from lastRun
+		const metrics = (job && job.metrics) ? job.metrics : (lastRun && lastRun.metrics ? lastRun.metrics : null);
+		const healthScore = (job && job.health_score !== undefined) ? job.health_score : (lastRun && lastRun.health_score !== undefined ? lastRun.health_score : null);
+
+		if (!metrics || !healthScore) {
+			elements.dashboard.innerHTML = '<p class="sui-description">Run a scan to see dashboard metrics.</p>';
+			return;
+		}
+
+		const total = parseInt(metrics.total_posts) || 0;
+		const published = parseInt(metrics.published_posts) || 0;
+		const drafts = parseInt(metrics.draft_private_posts) || 0;
+		const brokenLinks = parseInt(metrics.posts_with_broken_links) || 0;
+		const blankContent = parseInt(metrics.posts_with_blank_content) || 0;
+		const missingImages = parseInt(metrics.posts_missing_featured_image) || 0;
+
+		// Calculate pie chart percentages
+		const publishedPercent = total > 0 ? (published / total) * 100 : 0;
+		const draftsPercent = total > 0 ? (drafts / total) * 100 : 0;
+
+		// Generate pie chart SVG
+		const pieChart = generatePieChart(publishedPercent, draftsPercent);
+
+		let html = '<div class="wpmudev-dashboard-grid">';
+		
+		// Health Score and Pie Chart Section
+		html += '<div class="wpmudev-dashboard-main">';
+		html += '<div class="wpmudev-health-score">';
+		html += '<div class="wpmudev-health-score-value">' + healthScore.toFixed(1) + '%</div>';
+		html += '<div class="wpmudev-health-score-label">Site Health Score</div>';
+		html += '</div>';
+		html += '<div class="wpmudev-pie-chart">' + pieChart + '</div>';
+		html += '</div>';
+
+		// Metrics Section
+		html += '<div class="wpmudev-dashboard-metrics">';
+		
+		// Published vs Drafts
+		html += '<div class="wpmudev-metric-item">';
+		html += '<div class="wpmudev-metric-icon wpmudev-icon-published"></div>';
+		html += '<div class="wpmudev-metric-content">';
+		html += '<div class="wpmudev-metric-label">Published Posts</div>';
+		html += '<div class="wpmudev-metric-value">' + published + '</div>';
+		html += '</div></div>';
+
+		html += '<div class="wpmudev-metric-item">';
+		html += '<div class="wpmudev-metric-icon wpmudev-icon-draft"></div>';
+		html += '<div class="wpmudev-metric-content">';
+		html += '<div class="wpmudev-metric-label">Drafts/Private</div>';
+		html += '<div class="wpmudev-metric-value">' + drafts + '</div>';
+		html += '</div></div>';
+
+		// Issues
+		html += '<div class="wpmudev-metric-item wpmudev-metric-issue">';
+		html += '<div class="wpmudev-metric-icon wpmudev-icon-broken-link"></div>';
+		html += '<div class="wpmudev-metric-content">';
+		html += '<div class="wpmudev-metric-label">Broken Internal Links</div>';
+		html += '<div class="wpmudev-metric-value">' + brokenLinks + '</div>';
+		html += '</div></div>';
+
+		html += '<div class="wpmudev-metric-item wpmudev-metric-issue">';
+		html += '<div class="wpmudev-metric-icon wpmudev-icon-blank"></div>';
+		html += '<div class="wpmudev-metric-content">';
+		html += '<div class="wpmudev-metric-label">Blank Content</div>';
+		html += '<div class="wpmudev-metric-value">' + blankContent + '</div>';
+		html += '</div></div>';
+
+		html += '<div class="wpmudev-metric-item wpmudev-metric-issue">';
+		html += '<div class="wpmudev-metric-icon wpmudev-icon-image"></div>';
+		html += '<div class="wpmudev-metric-content">';
+		html += '<div class="wpmudev-metric-label">Missing Featured Images</div>';
+		html += '<div class="wpmudev-metric-value">' + missingImages + '</div>';
+		html += '</div></div>';
+
+		html += '</div>'; // .wpmudev-dashboard-metrics
+		html += '</div>'; // .wpmudev-dashboard-grid
+
+		elements.dashboard.innerHTML = html;
+	}
+
+	/**
+	 * Generate pie chart SVG
+	 */
+	function generatePieChart(publishedPercent, draftsPercent) {
+		const size = 120;
+		const radius = 50;
+		const center = size / 2;
+		const circumference = 2 * Math.PI * radius;
+		
+		// Calculate dash offsets
+		const publishedDash = (publishedPercent / 100) * circumference;
+		const draftsDash = (draftsPercent / 100) * circumference;
+		const publishedOffset = circumference - publishedDash;
+
+		let svg = '<svg width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + ' ' + size + '">';
+		
+		// Published slice (green)
+		if (publishedPercent > 0) {
+			svg += '<circle cx="' + center + '" cy="' + center + '" r="' + radius + '" fill="none" stroke="#10b981" stroke-width="20" stroke-dasharray="' + publishedDash + ' ' + circumference + '" stroke-dashoffset="' + publishedOffset + '" transform="rotate(-90 ' + center + ' ' + center + ')"></circle>';
+		}
+		
+		// Drafts slice (gray) - starts after published
+		if (draftsPercent > 0) {
+			const draftsOffset = circumference - publishedDash - draftsDash;
+			svg += '<circle cx="' + center + '" cy="' + center + '" r="' + radius + '" fill="none" stroke="#e5e7eb" stroke-width="20" stroke-dasharray="' + draftsDash + ' ' + circumference + '" stroke-dashoffset="' + draftsOffset + '" transform="rotate(-90 ' + center + ' ' + center + ')"></circle>';
+		}
+		
+		// Center text
+		svg += '<text x="' + center + '" y="' + (center + 5) + '" text-anchor="middle" font-size="14" font-weight="600" fill="#1e293b">' + Math.round(publishedPercent) + '%</text>';
+		
+		svg += '</svg>';
+		
+		return svg;
 	}
 
 	// Initialize when DOM is ready
