@@ -62,7 +62,12 @@ module.exports = function (grunt) {
 				dot: true,
 				filter: 'isFile',
 			},
-			assets: ['assets/css/**', 'assets/js/**'],
+			assets: [
+				'assets/css/**',
+				'assets/js/**',
+				'!assets/css/posts-maintenance.css',
+				'!assets/js/posts-maintenance.js',
+			],
 			folder_v2: ['build/**'],
 		},
 

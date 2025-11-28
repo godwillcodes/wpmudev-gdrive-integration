@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2025-11-27T13:56:01+00:00\n"
+"POT-Creation-Date: 2025-11-28T21:04:57+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 
@@ -51,32 +51,48 @@ msgstr ""
 msgid "Failed to start scan."
 msgstr ""
 
-#: app/admin-pages/class-posts-maintenance.php:138
-msgid "Refresh Status"
+#: app/admin-pages/class-posts-maintenance.php:143
+msgid "Scan Configuration"
 msgstr ""
 
-#: app/admin-pages/class-posts-maintenance.php:145
-msgid "Scan Options"
-msgstr ""
-
-#: app/admin-pages/class-posts-maintenance.php:148
-msgid "Scan your published posts and pages to stamp the latest maintenance timestamp. Choose which post types to include and launch the process in the background."
+#: app/admin-pages/class-posts-maintenance.php:146
+msgid "Select post types to scan and update maintenance timestamps."
 msgstr ""
 
 #: app/admin-pages/class-posts-maintenance.php:151
-msgid "Post types to scan"
+msgid "Post Types"
 msgstr ""
 
-#: app/admin-pages/class-posts-maintenance.php:156
-msgid "Scan Posts"
+#: app/admin-pages/class-posts-maintenance.php:158
+msgid "Start Scan"
 msgstr ""
 
-#: app/admin-pages/class-posts-maintenance.php:163
-msgid "Progress"
+#: app/admin-pages/class-posts-maintenance.php:168
+msgid "Scan Progress"
 msgstr ""
 
 #: app/admin-pages/class-posts-maintenance.php:171
+msgid "Monitor the current scan operation in real-time."
+msgstr ""
+
+#: app/admin-pages/class-posts-maintenance.php:180
 msgid "No active scan."
+msgstr ""
+
+#: app/admin-pages/class-posts-maintenance.php:188
+msgid "Refresh Status"
+msgstr ""
+
+#: app/admin-pages/class-posts-maintenance.php:198
+msgid "Last Run Summary"
+msgstr ""
+
+#: app/admin-pages/class-posts-maintenance.php:201
+msgid "View details from the most recent scan operation."
+msgstr ""
+
+#: app/admin-pages/class-posts-maintenance.php:206
+msgid "No previous scan recorded."
 msgstr ""
 
 #: app/cli/class-posts-maintenance-command.php:70
