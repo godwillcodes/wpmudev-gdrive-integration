@@ -62,12 +62,15 @@ module.exports = function (grunt) {
 				dot: true,
 				filter: 'isFile',
 			},
-			assets: [
-				'assets/css/**',
-				'assets/js/**',
-				'!assets/css/posts-maintenance.css',
-				'!assets/js/posts-maintenance.js',
-			],
+			assets: {
+				src: [
+					'assets/css/drivetestpage*.css',
+					'assets/css/drivetestpage*.map',
+					'assets/js/drivetestpage*.js',
+					'assets/js/drivetestpage*.map',
+					'assets/js/drivetestpage*.asset.php',
+				],
+			},
 			folder_v2: ['build/**'],
 		},
 
