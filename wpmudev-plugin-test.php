@@ -17,6 +17,12 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
 
+// Support for site-level autoloading.
+if ( file_exists( __DIR__ . '/vendor/autoload.php' ) ) {
+	require_once __DIR__ . '/vendor/autoload.php';
+}
+
+
 // Plugin version.
 if ( ! defined( 'WPMUDEV_PLUGINTEST_VERSION' ) ) {
 	define( 'WPMUDEV_PLUGINTEST_VERSION', '1.0.0' );
@@ -46,52 +52,6 @@ if ( ! defined( 'WPMUDEV_PLUGINTEST_ASSETS_URL' ) ) {
 if ( ! defined( 'WPMUDEV_PLUGINTEST_SUI_VERSION' ) ) {
 	define( 'WPMUDEV_PLUGINTEST_SUI_VERSION', '2.12.23' );
 }
-
-
-// Support for site-level autoloading.
-if ( file_exists( __DIR__ . '/vendor/autoload.php' ) ) {
-	require_once __DIR__ . '/vendor/autoload.php';
-}
-
-// Fallback autoloader for plugin classes when composer dump-autoload has not been run.
-spl_autoload_register(
-	static function ( $class ) {
-		$prefix = 'WPMUDEV\\PluginTest\\';
-
-		if ( 0 !== strpos( $class, $prefix ) ) {
-			return;
-		}
-
-		$relative = substr( $class, strlen( $prefix ) );
-
-		if ( empty( $relative ) ) {
-			return;
-		}
-
-		$segments = explode( '\\', $relative );
-		$segments = array_map(
-			static function ( $segment ) {
-				return str_replace( '_', '-', strtolower( $segment ) );
-			},
-			$segments
-		);
-
-		$class_name = array_pop( $segments );
-		$directory = WPMUDEV_PLUGINTEST_DIR . ( $segments ? implode( '/', $segments ) . '/' : '' );
-		$file      = $directory . 'class-' . $class_name . '.php';
-
-		if ( file_exists( $file ) ) {
-            require_once $file;
-			return;
-		}
-
-		$matches = glob( $directory . 'class-' . $class_name . '*.php' );
-
-		if ( ! empty( $matches ) ) {
-			require_once $matches[0];
-		}
-	}
-);
 
 
 /**

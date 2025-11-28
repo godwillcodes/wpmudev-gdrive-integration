@@ -1,6 +1,5 @@
 module.exports = function (grunt) {
 	require('load-grunt-tasks')(grunt)
-	const path = require('path')
 
 	const pkg = grunt.file.readJSON('package.json')
 	const paths = {
@@ -38,12 +37,6 @@ module.exports = function (grunt) {
 		// Never ship the development vendor tree or sourcemaps.
 		'!vendor/**',
 		'!**/*.map',
-		// Strip hidden / tooling files that may leak into builds.
-		'!**/.DS_Store',
-		'!**/.gitignore',
-		'!**/.gitattributes',
-		'!**/.gitmodules',
-		'!**/.gitkeep',
 		// Explicitly exclude development / tooling / source files.
 		'!node_modules/**',
 		'!src/**',
@@ -71,18 +64,6 @@ module.exports = function (grunt) {
 			},
 			assets: ['assets/css/**', 'assets/js/**'],
 			folder_v2: ['build/**'],
-			release: {
-				src: [
-					'<%= paths.releaseDir %>/**/.DS_Store',
-					'<%= paths.releaseDir %>/**/.gitignore',
-					'<%= paths.releaseDir %>/**/.gitattributes',
-					'<%= paths.releaseDir %>/**/.gitmodules',
-					'<%= paths.releaseDir %>/**/phpunit.xml',
-					'<%= paths.releaseDir %>/**/phpunit.xml.dist',
-				],
-				dot: true,
-				filter: 'isFile',
-			},
 		},
 
 		checktextdomain: {
@@ -191,42 +172,10 @@ module.exports = function (grunt) {
 		)
 	})
 
-	grunt.registerTask('sanitize_assets', 'Normalize asset filenames for release builds', function () {
-		const releaseDir = grunt.template.process('<%= paths.releaseDir %>')
-		const retinaSrc = path.join(releaseDir, 'assets/images/select-arrow@2x.png')
-		const retinaDest = path.join(releaseDir, 'assets/images/select-arrow-2x.png')
-
-		if (grunt.file.exists(retinaSrc)) {
-			grunt.log.writeln('Renaming retina arrow asset to remove special characters')
-			grunt.file.copy(retinaSrc, retinaDest)
-			grunt.file.delete(retinaSrc)
-		}
-
-		const filesToPatch = grunt.file.expand(
-			{
-				cwd: releaseDir,
-				filter: 'isFile',
-			},
-			['assets/css/**/*.css', 'assets/js/**/*.js']
-		)
-
-		filesToPatch.forEach((relativePath) => {
-			const absolutePath = path.join(releaseDir, relativePath)
-			const original = grunt.file.read(absolutePath)
-			const updated = original.replace(/select-arrow@2x/g, 'select-arrow-2x')
-
-			if (updated !== original) {
-				grunt.file.write(absolutePath, updated)
-			}
-		})
-	})
-
 	grunt.registerTask('build', [
 		'checktextdomain',
 		'copy:pro',
 		'composer:install',
-		'clean:release',
-		'sanitize_assets',
 		'compress:pro',
 	])
 
