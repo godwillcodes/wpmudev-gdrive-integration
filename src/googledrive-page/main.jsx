@@ -4,6 +4,31 @@ import { Button, TextControl, Spinner, Notice } from '@wordpress/components';
 
 import "./scss/style.scss"
 
+// Icon Components
+const RefreshIcon = () => (
+    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: '6px' }}>
+        <path d="M10 3V1M10 3C6.13401 3 3 6.13401 3 10C3 10.2761 3.22386 10.5 3.5 10.5C3.77614 10.5 4 10.2761 4 10C4 6.68629 6.68629 4 10 4M10 3L12 1M10 19V17M10 17C13.866 17 17 13.866 17 10C17 9.72386 16.7761 9.5 16.5 9.5C16.2239 9.5 16 9.72386 16 10C16 13.3137 13.3137 16 10 16M10 17L8 19" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+);
+
+const DownloadIcon = () => (
+    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: '6px' }}>
+        <path d="M3 15L3 16C3 17.1046 3.89543 18 5 18L15 18C16.1046 18 17 17.1046 17 16L17 15M13 10L10 13M10 13L7 10M10 13L10 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+);
+
+const PreviousIcon = () => (
+    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: '6px' }}>
+        <path d="M12 15L7 10L12 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+);
+
+const NextIcon = () => (
+    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginLeft: '6px' }}>
+        <path d="M8 5L13 10L8 15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+);
+
 const domElement = document.getElementById(window.wpmudevDriveTest.dom_element_id);
 
 /**
@@ -815,113 +840,113 @@ const WPMUDEV_DriveTest = () => {
             ) : (
                 <>
                     <div className="wpmudev-drive-grid wpmudev-drive-grid--actions">
-                    {/* File Upload Section */}
-                    <div className="sui-box wpmudev-drive-panel">
-                        <div className="sui-box-header">
-                            <h2 className="sui-box-title">
-                                {__('Upload File to Drive', 'wpmudev-plugin-test')}
-                            </h2>
-                            <p className="sui-description">
-                                {__('Modern dropzone styling with Forminator palette.', 'wpmudev-plugin-test')}
-                            </p>
-                        </div>
-                        <div className="sui-box-body">
-                            <div className="sui-box-settings-row wpmudev-drive-upload-row">
-                                <div className="wpmudev-drive-file-input-wrapper">
-                                    <label className="wpmudev-drive-file-label">
-                                        <input
-                                            type="file"
-                                            onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
-                                            className="drive-file-input"
-                                            disabled={isLoading}
-                                        />
-                                        <span className="wpmudev-drive-file-label-text">
-                                            {uploadFile
-                                                ? __('Change File', 'wpmudev-plugin-test')
-                                                : __('Choose File', 'wpmudev-plugin-test')}
-                                        </span>
-                                    </label>
-                                    {uploadFile && (
-                                        <div className="wpmudev-drive-file-info">
-                                            <strong>{__('Selected:', 'wpmudev-plugin-test')}</strong>{' '}
-                                            <span className="wpmudev-drive-file-name">{uploadFile.name}</span>
-                                            <span className="wpmudev-drive-file-size">
-                                                ({formatFileSize(uploadFile.size)})
+                        {/* File Upload Section */}
+                        <div className="sui-box wpmudev-drive-panel wpmudev-drive-panel--upload">
+                            <div className="sui-box-header">
+                                <h2 className="sui-box-title">
+                                    {__('Upload File to Drive', 'wpmudev-plugin-test')}
+                                </h2>
+                                <p className="sui-description">
+                                    {__('Modern dropzone styling with Forminator palette.', 'wpmudev-plugin-test')}
+                                </p>
+                            </div>
+                            <div className="sui-box-body">
+                                <div className="sui-box-settings-row wpmudev-drive-upload-row">
+                                    <div className="wpmudev-drive-file-input-wrapper">
+                                        <label className="wpmudev-drive-file-label">
+                                            <input
+                                                type="file"
+                                                onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
+                                                className="drive-file-input"
+                                                disabled={isLoading}
+                                            />
+                                            <span className="wpmudev-drive-file-label-text">
+                                                {uploadFile
+                                                    ? __('Change File', 'wpmudev-plugin-test')
+                                                    : __('Choose File', 'wpmudev-plugin-test')}
                                             </span>
-                                        </div>
-                                    )}
-                                    {isLoading && uploadProgress > 0 && (
-                                        <div className="wpmudev-drive-upload-progress">
-                                            <div className="wpmudev-drive-progress-bar-wrapper">
-                                                <div
-                                                    className="wpmudev-drive-progress-bar"
-                                                    style={{ width: `${uploadProgress}%` }}
-                                                />
+                                        </label>
+                                        {uploadFile && (
+                                            <div className="wpmudev-drive-file-info">
+                                                <strong>{__('Selected:', 'wpmudev-plugin-test')}</strong>{' '}
+                                                <span className="wpmudev-drive-file-name">{uploadFile.name}</span>
+                                                <span className="wpmudev-drive-file-size">
+                                                    ({formatFileSize(uploadFile.size)})
+                                                </span>
                                             </div>
-                                            <div className="wpmudev-drive-progress-text">
-                                                {__('Uploading:', 'wpmudev-plugin-test')} {uploadProgress}%
+                                        )}
+                                        {isLoading && uploadProgress > 0 && (
+                                            <div className="wpmudev-drive-upload-progress">
+                                                <div className="wpmudev-drive-progress-bar-wrapper">
+                                                    <div
+                                                        className="wpmudev-drive-progress-bar"
+                                                        style={{ width: `${uploadProgress}%` }}
+                                                    />
+                                                </div>
+                                                <div className="wpmudev-drive-progress-text">
+                                                    {__('Uploading:', 'wpmudev-plugin-test')} {uploadProgress}%
+                                                </div>
                                             </div>
-                                        </div>
-                                    )}
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="sui-box-footer">
+                                <div className="sui-actions-right">
+                                    <Button
+                                        variant="primary"
+                                        onClick={handleUpload}
+                                        disabled={isLoading || !uploadFile}
+                                    >
+                                        {isLoading ? (
+                                            <>
+                                                <Spinner />
+                                                {uploadProgress > 0 ? `${uploadProgress}%` : __('Uploading...', 'wpmudev-plugin-test')}
+                                            </>
+                                        ) : (
+                                            __('Upload to Drive', 'wpmudev-plugin-test')
+                                        )}
+                                    </Button>
                                 </div>
                             </div>
                         </div>
-                        <div className="sui-box-footer">
-                            <div className="sui-actions-right">
-                                <Button
-                                    variant="primary"
-                                    onClick={handleUpload}
-                                    disabled={isLoading || !uploadFile}
-                                >
-                                    {isLoading ? (
-                                        <>
-                                            <Spinner />
-                                            {uploadProgress > 0 ? `${uploadProgress}%` : __('Uploading...', 'wpmudev-plugin-test')}
-                                        </>
-                                    ) : (
-                                        __('Upload to Drive', 'wpmudev-plugin-test')
-                                    )}
-                                </Button>
-                            </div>
-                        </div>
-                    </div>
 
-                    {/* Create Folder Section */}
-                    <div className="sui-box wpmudev-drive-panel">
-                        <div className="sui-box-header">
-                            <h2 className="sui-box-title">
-                                {__('Create New Folder', 'wpmudev-plugin-test')}
-                            </h2>
-                            <p className="sui-description">
-                                {__('Keep uploads organised with curated directories.', 'wpmudev-plugin-test')}
-                            </p>
-                        </div>
-                        <div className="sui-box-body">
-                            <div className="sui-box-settings-row">
-                                <TextControl
-                                    label={__('Folder Name', 'wpmudev-plugin-test')}
-                                    value={folderName}
-                                    onChange={setFolderName}
-                                    placeholder={__('Enter folder name', 'wpmudev-plugin-test')}
-                                />
+                        {/* Create Folder Section */}
+                        <div className="sui-box wpmudev-drive-panel wpmudev-drive-panel--folder">
+                            <div className="sui-box-header">
+                                <h2 className="sui-box-title">
+                                    {__('Create New Folder', 'wpmudev-plugin-test')}
+                                </h2>
+                                <p className="sui-description">
+                                    {__('Keep uploads organised with curated directories.', 'wpmudev-plugin-test')}
+                                </p>
+                            </div>
+                            <div className="sui-box-body">
+                                <div className="sui-box-settings-row">
+                                    <TextControl
+                                        label={__('Folder Name', 'wpmudev-plugin-test')}
+                                        value={folderName}
+                                        onChange={setFolderName}
+                                        placeholder={__('Enter folder name', 'wpmudev-plugin-test')}
+                                    />
+                                </div>
+                            </div>
+                            <div className="sui-box-footer">
+                                <div className="sui-actions-right">
+                                    <Button
+                                        variant="secondary"
+                                        onClick={handleCreateFolder}
+                                        disabled={isLoading || !folderName.trim()}
+                                    >
+                                        {isLoading ? <Spinner /> : __('Create Folder', 'wpmudev-plugin-test')}
+                                    </Button>
+                                </div>
                             </div>
                         </div>
-                        <div className="sui-box-footer">
-                            <div className="sui-actions-right">
-                                <Button
-                                    variant="secondary"
-                                    onClick={handleCreateFolder}
-                                    disabled={isLoading || !folderName.trim()}
-                                >
-                                    {isLoading ? <Spinner /> : __('Create Folder', 'wpmudev-plugin-test')}
-                                </Button>
-                            </div>
-                        </div>
-                    </div>
                     </div>
 
                     {/* Files List Section */}
-                    <div className="sui-box wpmudev-drive-panel wpmudev-drive-panel--full">
+                    <div className="sui-box wpmudev-drive-panel wpmudev-drive-panel--full wpmudev-drive-panel--files">
                         <div className="sui-box-header">
                             <h2 className="sui-box-title">
                                 {__('Your Drive Files', 'wpmudev-plugin-test')}
@@ -932,7 +957,12 @@ const WPMUDEV_DriveTest = () => {
                                     onClick={loadFiles}
                                     disabled={isLoading}
                                 >
-                                    {isLoading ? <Spinner /> : __('Refresh Files', 'wpmudev-plugin-test')}
+                                    {isLoading ? <Spinner /> : (
+                                        <>
+                                            <RefreshIcon />
+                                            {__('Refresh Files', 'wpmudev-plugin-test')}
+                                        </>
+                                    )}
                                 </Button>
                             </div>
                         </div>
@@ -991,6 +1021,7 @@ const WPMUDEV_DriveTest = () => {
                                                                         disabled={isLoading}
                                                                         className="wpmudev-drive-action-btn"
                                                                     >
+                                                                        <DownloadIcon />
                                                                         {__('Download', 'wpmudev-plugin-test')}
                                                                     </Button>
                                                                 )}
@@ -1048,9 +1079,12 @@ const WPMUDEV_DriveTest = () => {
                                                         fontWeight: 600,
                                                         padding: '8px 16px',
                                                         borderRadius: '6px',
-                                                        cursor: currentPage === 1 ? 'not-allowed' : 'pointer'
+                                                        cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+                                                        display: 'flex',
+                                                        alignItems: 'center'
                                                     }}
                                                 >
+                                                    <PreviousIcon />
                                                     {__('Previous', 'wpmudev-plugin-test')}
                                                 </Button>
                                                 <Button
@@ -1065,10 +1099,13 @@ const WPMUDEV_DriveTest = () => {
                                                         fontWeight: 600,
                                                         padding: '8px 16px',
                                                         borderRadius: '6px',
-                                                        cursor: !hasMore ? 'not-allowed' : 'pointer'
+                                                        cursor: !hasMore ? 'not-allowed' : 'pointer',
+                                                        display: 'flex',
+                                                        alignItems: 'center'
                                                     }}
                                                 >
                                                     {__('Next', 'wpmudev-plugin-test')}
+                                                    <NextIcon />
                                                 </Button>
                                             </div>
                                         </div>
