@@ -8,6 +8,8 @@ module.exports = {
     ...defaultConfig,
 	entry: {
 		'drivetestpage': './src/googledrive-page/main.jsx',
+		'posts-maintenance': './src/posts-maintenance/main.jsx',
+		'posts-maintenance-history': './src/posts-maintenance/history.jsx',
 	},
 
 	output: {

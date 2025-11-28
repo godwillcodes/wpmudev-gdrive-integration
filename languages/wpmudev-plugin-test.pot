@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2025-11-28T21:33:04+00:00\n"
+"POT-Creation-Date: 2025-11-28T22:32:06+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 
@@ -34,65 +34,43 @@ msgstr ""
 
 #: app/admin-pages/class-posts-maintenance.php:53
 #: app/admin-pages/class-posts-maintenance.php:54
-#: app/admin-pages/class-posts-maintenance.php:135
 msgid "Posts Maintenance"
 msgstr ""
 
-#: app/admin-pages/class-posts-maintenance.php:115
+#: app/admin-pages/class-posts-maintenance.php:65
+#: app/admin-pages/class-posts-maintenance.php:66
+msgid "Scan History"
+msgstr ""
+
+#: app/admin-pages/class-posts-maintenance.php:140
 msgid "Select at least one post type to scan."
 msgstr ""
 
-#: app/admin-pages/class-posts-maintenance.php:116
-#: app/endpoints/v1/class-posts-maintenance-rest.php:108
+#: app/admin-pages/class-posts-maintenance.php:141
+#: app/endpoints/v1/class-posts-maintenance-rest.php:144
 msgid "Scan started successfully."
 msgstr ""
 
-#: app/admin-pages/class-posts-maintenance.php:117
+#: app/admin-pages/class-posts-maintenance.php:142
 msgid "Failed to start scan."
 msgstr ""
 
-#: app/admin-pages/class-posts-maintenance.php:143
-msgid "Scan Configuration"
+#: app/admin-pages/class-posts-maintenance.php:196
+msgid "Are you sure you want to delete this scan record?"
 msgstr ""
 
-#: app/admin-pages/class-posts-maintenance.php:146
-msgid "Select post types to scan and update maintenance timestamps."
-msgstr ""
-
-#: app/admin-pages/class-posts-maintenance.php:151
-msgid "Post Types"
-msgstr ""
-
-#: app/admin-pages/class-posts-maintenance.php:158
-msgid "Start Scan"
-msgstr ""
-
-#: app/admin-pages/class-posts-maintenance.php:168
-msgid "Scan Progress"
-msgstr ""
-
-#: app/admin-pages/class-posts-maintenance.php:171
-msgid "Monitor the current scan operation in real-time."
-msgstr ""
-
-#: app/admin-pages/class-posts-maintenance.php:180
-msgid "No active scan."
-msgstr ""
-
-#: app/admin-pages/class-posts-maintenance.php:188
-msgid "Refresh Status"
+#: app/admin-pages/class-posts-maintenance.php:197
+#: app/endpoints/v1/class-posts-maintenance-rest.php:237
+msgid "Scan record deleted successfully."
 msgstr ""
 
 #: app/admin-pages/class-posts-maintenance.php:198
-msgid "Last Run Summary"
+#: app/endpoints/v1/class-posts-maintenance-rest.php:229
+msgid "Failed to delete scan record."
 msgstr ""
 
-#: app/admin-pages/class-posts-maintenance.php:201
-msgid "View details from the most recent scan operation."
-msgstr ""
-
-#: app/admin-pages/class-posts-maintenance.php:206
-msgid "No previous scan recorded."
+#: app/admin-pages/class-posts-maintenance.php:199
+msgid "Failed to load scan details."
 msgstr ""
 
 #: app/cli/class-posts-maintenance-command.php:70
@@ -242,14 +220,18 @@ msgstr ""
 msgid "An unexpected error occurred while uploading the file. Please try again later."
 msgstr ""
 
-#: app/services/class-posts-maintenance.php:63
+#: app/endpoints/v1/class-posts-maintenance-rest.php:206
+msgid "Scan record not found."
+msgstr ""
+
+#: app/services/class-posts-maintenance.php:64
 msgid "A scan is already running. Please wait for it to finish before starting a new one."
 msgstr ""
 
-#: app/services/class-posts-maintenance.php:80
+#: app/services/class-posts-maintenance.php:81
 msgid "No valid public post types were provided."
 msgstr ""
 
-#: app/services/class-posts-maintenance.php:100
-msgid "No published posts were found for the selected post types."
+#: app/services/class-posts-maintenance.php:116
+msgid "No posts were found for the selected post types."
 msgstr ""

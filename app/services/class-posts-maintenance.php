@@ -21,6 +21,7 @@ class Posts_Maintenance extends Base {
 	const OPTION_JOB      = 'wpmudev_posts_scan_job';
 	const OPTION_LAST_RUN = 'wpmudev_posts_scan_last_run';
 	const OPTION_HISTORY  = 'wpmudev_posts_scan_history';
+	const OPTION_SETTINGS = 'wpmudev_posts_scan_settings';
 
 	const CRON_HOOK_PROCESS = 'wpmudev_posts_scan_process';
 	const CRON_HOOK_DAILY   = 'wpmudev_posts_scan_daily';
@@ -135,7 +136,6 @@ class Posts_Maintenance extends Base {
 				'total_posts'              => 0,
 				'published_posts'           => 0,
 				'draft_private_posts'      => 0,
-				'posts_with_broken_links'   => 0,
 				'posts_with_blank_content' => 0,
 				'posts_missing_featured_image' => 0,
 			),
@@ -278,7 +278,10 @@ class Posts_Maintenance extends Base {
 			return;
 		}
 
-		$this->start_job( $this->get_default_post_types(), 'schedule' );
+		$settings = $this->get_settings();
+		$post_types = ! empty( $settings['scheduled_post_types'] ) ? $settings['scheduled_post_types'] : $this->get_default_post_types();
+
+		$this->start_job( $post_types, 'schedule' );
 	}
 
 	/**
@@ -287,9 +290,112 @@ class Posts_Maintenance extends Base {
 	 * @return void
 	 */
 	public function maybe_schedule_daily_event() {
-		if ( ! wp_next_scheduled( self::CRON_HOOK_DAILY ) ) {
-			wp_schedule_event( time() + DAY_IN_SECONDS, 'daily', self::CRON_HOOK_DAILY );
+		$settings = $this->get_settings();
+		$enabled = isset( $settings['auto_scan_enabled'] ) ? (bool) $settings['auto_scan_enabled'] : true;
+		
+		if ( ! $enabled ) {
+			// Unschedule if disabled
+			$timestamp = wp_next_scheduled( self::CRON_HOOK_DAILY );
+			if ( $timestamp ) {
+				wp_unschedule_event( $timestamp, self::CRON_HOOK_DAILY );
+			}
+			return;
 		}
+
+		$next_scheduled = wp_next_scheduled( self::CRON_HOOK_DAILY );
+		
+		if ( $next_scheduled ) {
+			// Check if schedule time has changed
+			$scheduled_time = isset( $settings['scheduled_time'] ) ? $settings['scheduled_time'] : '00:00';
+			$next_time = $this->calculate_next_scan_timestamp( $scheduled_time );
+			
+			// Reschedule if time changed (within 1 hour tolerance)
+			if ( abs( $next_scheduled - $next_time ) > 3600 ) {
+				wp_unschedule_event( $next_scheduled, self::CRON_HOOK_DAILY );
+				wp_schedule_event( $next_time, 'daily', self::CRON_HOOK_DAILY );
+			}
+		} else {
+			// Schedule for the first time
+			$scheduled_time = isset( $settings['scheduled_time'] ) ? $settings['scheduled_time'] : '00:00';
+			$next_time = $this->calculate_next_scan_timestamp( $scheduled_time );
+			wp_schedule_event( $next_time, 'daily', self::CRON_HOOK_DAILY );
+		}
+	}
+
+	/**
+	 * Calculates next scan timestamp based on scheduled time.
+	 *
+	 * @param string $time Time in HH:MM format.
+	 * @return int Unix timestamp.
+	 */
+	private function calculate_next_scan_timestamp( string $time ): int {
+		list( $hour, $minute ) = explode( ':', $time );
+		$hour = (int) $hour;
+		$minute = (int) $minute;
+
+		$now = current_time( 'timestamp' );
+		$today = strtotime( date( 'Y-m-d', $now ) );
+		$scheduled_today = $today + ( $hour * HOUR_IN_SECONDS ) + ( $minute * MINUTE_IN_SECONDS );
+
+		if ( $scheduled_today > $now ) {
+			return $scheduled_today;
+		}
+
+		return $scheduled_today + DAY_IN_SECONDS;
+	}
+
+	/**
+	 * Gets settings.
+	 *
+	 * @return array
+	 */
+	public function get_settings(): array {
+		$defaults = array(
+			'auto_scan_enabled'      => true,
+			'scheduled_time'         => '00:00',
+			'scheduled_post_types'   => $this->get_default_post_types(),
+		);
+
+		$settings = get_option( self::OPTION_SETTINGS, array() );
+		return wp_parse_args( $settings, $defaults );
+	}
+
+	/**
+	 * Saves settings.
+	 *
+	 * @param array $settings Settings array.
+	 * @return bool
+	 */
+	public function save_settings( array $settings ): bool {
+		$sanitized = array(
+			'auto_scan_enabled'      => isset( $settings['auto_scan_enabled'] ) ? (bool) $settings['auto_scan_enabled'] : true,
+			'scheduled_time'         => isset( $settings['scheduled_time'] ) ? sanitize_text_field( $settings['scheduled_time'] ) : '00:00',
+			'scheduled_post_types'   => isset( $settings['scheduled_post_types'] ) && is_array( $settings['scheduled_post_types'] ) 
+				? array_map( 'sanitize_key', $settings['scheduled_post_types'] ) 
+				: $this->get_default_post_types(),
+		);
+
+		$result = update_option( self::OPTION_SETTINGS, $sanitized, false );
+		
+		// Reschedule cron with new settings
+		$this->maybe_schedule_daily_event();
+		
+		return $result;
+	}
+
+	/**
+	 * Gets next scheduled scan timestamp.
+	 *
+	 * @return int|null Unix timestamp or null if not scheduled.
+	 */
+	public function get_next_scan_timestamp(): ?int {
+		$settings = $this->get_settings();
+		if ( ! isset( $settings['auto_scan_enabled'] ) || ! $settings['auto_scan_enabled'] ) {
+			return null;
+		}
+		
+		$timestamp = wp_next_scheduled( self::CRON_HOOK_DAILY );
+		return $timestamp ? $timestamp : null;
 	}
 
 	/**
@@ -386,69 +492,6 @@ class Posts_Maintenance extends Base {
 		if ( empty( $thumbnail_id ) || ! wp_attachment_is_image( $thumbnail_id ) ) {
 			$metrics['posts_missing_featured_image']++;
 		}
-
-		// Check for broken internal links
-		if ( $this->has_broken_internal_links( $post ) ) {
-			$metrics['posts_with_broken_links']++;
-		}
-	}
-
-	/**
-	 * Checks if a post has broken internal links.
-	 *
-	 * @param \WP_Post $post Post object.
-	 *
-	 * @return bool
-	 */
-	private function has_broken_internal_links( \WP_Post $post ): bool {
-		$content = $post->post_content;
-		$site_url = home_url();
-		$parsed_site = wp_parse_url( $site_url );
-		$site_host = isset( $parsed_site['host'] ) ? $parsed_site['host'] : '';
-
-		if ( empty( $site_host ) ) {
-			return false;
-		}
-
-		// Find all links in content
-		preg_match_all( '/<a[^>]+href=["\']([^"\']+)["\'][^>]*>/i', $content, $matches );
-
-		if ( empty( $matches[1] ) ) {
-			return false;
-		}
-
-		foreach ( $matches[1] as $url ) {
-			$parsed_url = wp_parse_url( $url );
-			$url_host = isset( $parsed_url['host'] ) ? $parsed_url['host'] : '';
-
-			// Only check internal links (same domain or relative)
-			if ( ! empty( $url_host ) && $url_host !== $site_host ) {
-				continue;
-			}
-
-			// Handle relative URLs
-			if ( empty( $url_host ) || $url_host === $site_host ) {
-				$path = isset( $parsed_url['path'] ) ? $parsed_url['path'] : $url;
-				
-				// Extract post/page slug or ID from URL
-				$post_id = url_to_postid( $url );
-				
-				if ( $post_id > 0 ) {
-					$linked_post = get_post( $post_id );
-					if ( ! $linked_post || 'publish' !== $linked_post->post_status ) {
-						return true; // Broken link found
-					}
-				} elseif ( ! empty( $path ) && '/' !== $path ) {
-					// Try to find post by slug
-					$page = get_page_by_path( trim( $path, '/' ) );
-					if ( ! $page || 'publish' !== $page->post_status ) {
-						return true; // Broken link found
-					}
-				}
-			}
-		}
-
-		return false;
 	}
 
 	/**
@@ -466,19 +509,16 @@ class Posts_Maintenance extends Base {
 		}
 
 		// Published Posts Ratio
-		$published_ratio = $total > 0 ? ( (int) $metrics['published_posts'] / $total ) : 1.0;
-
-		// Posts Without Broken Links Ratio
-		$no_broken_links_ratio = $total > 0 ? ( ( $total - (int) $metrics['posts_with_broken_links'] ) / $total ) : 1.0;
+		$published_ratio = ( (int) $metrics['published_posts'] ) / $total;
 
 		// Posts With Content Ratio
-		$with_content_ratio = $total > 0 ? ( ( $total - (int) $metrics['posts_with_blank_content'] ) / $total ) : 1.0;
+		$has_content_ratio = ( $total - (int) $metrics['posts_with_blank_content'] ) / $total;
 
 		// Posts With Featured Images Ratio
-		$with_featured_ratio = $total > 0 ? ( ( $total - (int) $metrics['posts_missing_featured_image'] ) / $total ) : 1.0;
+		$has_images_ratio = ( $total - (int) $metrics['posts_missing_featured_image'] ) / $total;
 
-		// Average of all four ratios
-		$score = ( $published_ratio + $no_broken_links_ratio + $with_content_ratio + $with_featured_ratio ) / 4.0;
+		// Average of three ratios
+		$score = ( $published_ratio + $has_content_ratio + $has_images_ratio ) / 3;
 
 		return round( $score * 100, 1 );
 	}

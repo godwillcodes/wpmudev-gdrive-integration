@@ -3,17 +3,16 @@
 ## Posts Maintenance - Site Health Score Calculation
 
 ### Overview
-The Site Health Score is a comprehensive metric that evaluates the overall health of a WordPress site based on post quality indicators. It is calculated as the average of four equally weighted ratios, each representing a different aspect of content quality.
+The Site Health Score is a comprehensive metric that evaluates the overall health of a WordPress site based on post quality indicators. It is calculated as the average of three equally weighted ratios, each representing a different aspect of content quality.
 
 ### Calculation Formula
 
 ```
 Site Health Score = (
     Published Posts Ratio +
-    Posts Without Broken Links Ratio +
     Posts With Content Ratio +
     Posts With Featured Images Ratio
-) / 4
+) / 3
 ```
 
 ### Individual Ratios
@@ -31,25 +30,7 @@ Site Health Score = (
 
 ---
 
-#### 2. Posts Without Broken Links Ratio
-**Formula:** `(total_posts - posts_with_broken_links) / total_posts`
-
-**Description:** Measures the percentage of posts that do not contain broken internal links.
-
-**Calculation:**
-- `posts_with_broken_links`: Count of posts containing at least one broken internal link
-- `total_posts`: Total count of all posts scanned
-
-**Link Detection:**
-- Scans post content for internal links (links to the same domain)
-- Validates that linked posts/pages exist and are accessible
-- Only counts internal links (same domain), external links are ignored
-
-**Range:** 0.0 to 1.0 (0% to 100%)
-
----
-
-#### 3. Posts With Content Ratio
+#### 2. Posts With Content Ratio
 **Formula:** `(total_posts - posts_with_blank_content) / total_posts`
 
 **Description:** Measures the percentage of posts that have actual content (not blank).
@@ -67,7 +48,7 @@ Site Health Score = (
 
 ---
 
-#### 4. Posts With Featured Images Ratio
+#### 3. Posts With Featured Images Ratio
 **Formula:** `(total_posts - posts_missing_featured_image) / total_posts`
 
 **Description:** Measures the percentage of posts that have a featured image assigned.
@@ -87,34 +68,32 @@ Site Health Score = (
 
 ### Final Score Calculation
 
-The Site Health Score is the arithmetic mean (average) of the four ratios above, multiplied by 100 to display as a percentage.
+The Site Health Score is the arithmetic mean (average) of the three ratios above, multiplied by 100 to display as a percentage.
 
 **Example Calculation:**
 
 Given:
 - Total posts: 100
 - Published posts: 85
-- Posts with broken links: 10
 - Posts with blank content: 5
 - Posts missing featured images: 20
 
 Ratios:
 1. Published Posts Ratio = 85 / 100 = 0.85 (85%)
-2. Posts Without Broken Links Ratio = (100 - 10) / 100 = 0.90 (90%)
-3. Posts With Content Ratio = (100 - 5) / 100 = 0.95 (95%)
-4. Posts With Featured Images Ratio = (100 - 20) / 100 = 0.80 (80%)
+2. Posts With Content Ratio = (100 - 5) / 100 = 0.95 (95%)
+3. Posts With Featured Images Ratio = (100 - 20) / 100 = 0.80 (80%)
 
-Site Health Score = (0.85 + 0.90 + 0.95 + 0.80) / 4 = 0.875 = **87.5%**
+Site Health Score = (0.85 + 0.95 + 0.80) / 3 = 0.867 = **86.7%**
 
 ---
 
 ### Display Format
 
 - **Score Range:** 0% to 100%
-- **Display:** Percentage with one decimal place (e.g., "87.5%")
+- **Display:** Percentage with one decimal place (e.g., "86.7%")
 - **Visualization:** 
   - Pie chart showing published vs drafts/private posts
-  - Count badges for broken links, blank content, and missing featured images
+  - Count badges for blank content and missing featured images
   - Large, prominent display of the Site Health Score percentage
 
 ---
@@ -127,7 +106,6 @@ All metrics are collected during the Posts Maintenance scan process:
    - Post status (published, draft, private, etc.)
    - Post content analysis (blank detection)
    - Featured image presence
-   - Internal link validation
 
 2. **Storage:**
    - Metrics are stored in the scan job results
@@ -147,7 +125,7 @@ All metrics are collected during the Posts Maintenance scan process:
 
 2. **No Published Posts:** If `published_posts = 0` but `total_posts > 0`, the Published Posts Ratio is 0.0 (0%).
 
-3. **All Posts Have Issues:** If all posts have broken links, blank content, or missing images, the respective ratios are 0.0 (0%).
+3. **All Posts Have Issues:** If all posts have blank content or missing images, the respective ratios are 0.0 (0%).
 
 4. **Mixed Status Posts:** Only published posts are scanned by default, but the dashboard may show all post statuses for the Published Posts Ratio calculation.
 
@@ -157,6 +135,6 @@ All metrics are collected during the Posts Maintenance scan process:
 
 - All ratios are equally weighted in the final calculation
 - The score is designed to be a quick health indicator, not a comprehensive audit
-- Individual metrics (broken links, blank content, missing images) are displayed separately for detailed analysis
+- Individual metrics (blank content, missing images) are displayed separately for detailed analysis
 - The pie chart provides visual context for the published vs non-published post distribution
 

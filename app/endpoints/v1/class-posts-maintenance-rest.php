@@ -102,6 +102,50 @@ class Posts_Maintenance extends Base {
 				),
 			)
 		);
+
+		register_rest_route(
+			'wpmudev/v1/posts-maintenance',
+			'/settings',
+			array(
+				'methods'             => 'GET',
+				'callback'            => array( $this, 'get_settings' ),
+				'permission_callback' => function () {
+					return current_user_can( 'manage_options' );
+				},
+			)
+		);
+
+		register_rest_route(
+			'wpmudev/v1/posts-maintenance',
+			'/settings',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( $this, 'save_settings' ),
+				'permission_callback' => function () {
+					return current_user_can( 'manage_options' );
+				},
+				'args'                => array(
+					'auto_scan_enabled'    => array(
+						'type'              => 'boolean',
+						'required'          => false,
+						'sanitize_callback' => 'rest_sanitize_boolean',
+					),
+					'scheduled_time'       => array(
+						'type'              => 'string',
+						'required'          => false,
+						'sanitize_callback' => 'sanitize_text_field',
+						'validate_callback' => function ( $param ) {
+							return preg_match( '/^([0-1][0-9]|2[0-3]):[0-5][0-9]$/', $param );
+						},
+					),
+					'scheduled_post_types'  => array(
+						'type'              => 'array',
+						'required'          => false,
+						'sanitize_callback' => array( $this, 'sanitize_post_types' ),
+					),
+				),
+			)
+		);
 	}
 
 	/**
@@ -159,6 +203,7 @@ class Posts_Maintenance extends Base {
 				'job'        => $service->format_job_for_response(),
 				'lastRun'    => $service->get_last_run(),
 				'postTypes'  => $this->get_public_post_types(),
+				'nextScan'   => $service->get_next_scan_timestamp(),
 			)
 		);
 	}
@@ -235,6 +280,56 @@ class Posts_Maintenance extends Base {
 			array(
 				'success' => true,
 				'message' => __( 'Scan record deleted successfully.', 'wpmudev-plugin-test' ),
+			)
+		);
+	}
+
+	/**
+	 * Gets settings.
+	 *
+	 * @return WP_REST_Response
+	 */
+	public function get_settings() {
+		$service = Posts_Maintenance_Service::instance();
+		$settings = $service->get_settings();
+		$settings['next_scan'] = $service->get_next_scan_timestamp();
+
+		return new WP_REST_Response( $settings );
+	}
+
+	/**
+	 * Saves settings.
+	 *
+	 * @param WP_REST_Request $request Request instance.
+	 * @return WP_REST_Response|WP_Error
+	 */
+	public function save_settings( WP_REST_Request $request ) {
+		$service = Posts_Maintenance_Service::instance();
+		
+		$settings = array(
+			'auto_scan_enabled'    => $request->get_param( 'auto_scan_enabled' ),
+			'scheduled_time'       => $request->get_param( 'scheduled_time' ),
+			'scheduled_post_types' => $request->get_param( 'scheduled_post_types' ),
+		);
+
+		$result = $service->save_settings( $settings );
+
+		if ( ! $result ) {
+			return new WP_Error(
+				'wpmudev_settings_save_failed',
+				__( 'Failed to save settings.', 'wpmudev-plugin-test' ),
+				array( 'status' => 500 )
+			);
+		}
+
+		$updated_settings = $service->get_settings();
+		$updated_settings['next_scan'] = $service->get_next_scan_timestamp();
+
+		return new WP_REST_Response(
+			array(
+				'success'  => true,
+				'settings' => $updated_settings,
+				'message'  => __( 'Settings saved successfully.', 'wpmudev-plugin-test' ),
 			)
 		);
 	}

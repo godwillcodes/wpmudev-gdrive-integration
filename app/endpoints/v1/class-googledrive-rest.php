@@ -171,6 +171,19 @@ class Drive_API extends Base {
 			)
 		);
 
+		// Disconnect endpoint.
+		register_rest_route(
+			'wpmudev/v1/drive',
+			'/disconnect',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( $this, 'disconnect' ),
+				'permission_callback' => function () {
+					return current_user_can( 'manage_options' );
+				},
+			)
+		);
+
 		// List files.
 		register_rest_route(
 			'wpmudev/v1/drive',
@@ -1113,6 +1126,59 @@ class Drive_API extends Base {
 
 		} catch ( Exception $e ) {
 			return new WP_Error( 'create_failed', $e->getMessage(), array( 'status' => 500 ) );
+		}
+	}
+
+	/**
+	 * Disconnect Google Drive account by revoking access token.
+	 *
+	 * @param WP_REST_Request $request Request instance.
+	 * @return WP_REST_Response|WP_Error
+	 */
+	public function disconnect( WP_REST_Request $request ) {
+		try {
+			// Revoke token if client is available
+			if ( $this->client ) {
+				$access_token = get_option( 'wpmudev_drive_access_token', '' );
+				if ( ! empty( $access_token ) && is_array( $access_token ) && isset( $access_token['access_token'] ) ) {
+					try {
+						$this->client->revokeToken( $access_token['access_token'] );
+					} catch ( \Exception $e ) {
+						// Log but don't fail if revocation fails
+						if ( function_exists( 'error_log' ) ) {
+							error_log( sprintf( 'WPMUDEV Drive: Failed to revoke token: %s', $e->getMessage() ) );
+						}
+					}
+				}
+			}
+
+			// Delete stored tokens
+			delete_option( 'wpmudev_drive_access_token' );
+			delete_option( 'wpmudev_drive_refresh_token' );
+			delete_option( 'wpmudev_drive_token_expires' );
+
+			// Clear client instance
+			$this->client = null;
+			$this->drive_service = null;
+
+			return new WP_REST_Response(
+				array(
+					'success' => true,
+					'message' => __( 'Successfully disconnected from Google Drive.', 'wpmudev-plugin-test' ),
+				),
+				200
+			);
+
+		} catch ( \Exception $e ) {
+			if ( function_exists( 'error_log' ) ) {
+				error_log( sprintf( 'WPMUDEV Drive: Disconnect error: %s', $e->getMessage() ) );
+			}
+
+			return new WP_Error(
+				'disconnect_failed',
+				__( 'Failed to disconnect from Google Drive. Please try again.', 'wpmudev-plugin-test' ),
+				array( 'status' => 500 )
+			);
 		}
 	}
 }
