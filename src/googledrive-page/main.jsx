@@ -752,90 +752,73 @@ const WPMUDEV_DriveTest = () => {
                     </div>
                 </div>
             ) : !isAuthenticated ? (
-                <div className="wpmudev-drive-grid">
-                    <div className="sui-box wpmudev-drive-panel wpmudev-drive-auth-box">
-                    <div className="sui-box-header">
-                        <h2 className="sui-box-title">
-                            {__('Authenticate with Google Drive', 'wpmudev-plugin-test')}
-                        </h2>
-                        <p className="wpmudev-drive-auth-tagline">
-                            {__('Complete the OAuth flow to unlock uploads, folder creation, and live file browsing.', 'wpmudev-plugin-test')}
-                        </p>
-                    </div>
-                    <div className="sui-box-body">
-                        <div className="sui-box-settings-row wpmudev-drive-auth-row">
-                            <div className="wpmudev-drive-auth-copy">
-                                <p className="wpmudev-drive-auth-intro">
-                                    {__(
-                                        'Connect your Google Drive account so we can run the test with real API calls.',
-                                        'wpmudev-plugin-test'
-                                    )}
+                <div className="wpmudev-drive-grid wpmudev-drive-grid--auth">
+                    {/* Single Authentication Pane */}
+                    <div className="sui-box wpmudev-drive-panel wpmudev-drive-panel--auth">
+                        <div className="sui-box-header">
+                            <div className="wpmudev-drive-auth-header-content">
+                                <h2 className="sui-box-title">
+                                    {__('Authenticate with Google Drive', 'wpmudev-plugin-test')}
+                                </h2>
+                                <p className="sui-description">
+                                    {__('Complete the OAuth flow to unlock uploads, folder creation, and live file browsing.', 'wpmudev-plugin-test')}
                                 </p>
-                                <p className="wpmudev-drive-auth-note">
-                                    {__(
-                                        'We will never store your files. Access is limited to the scopes listed here.',
-                                        'wpmudev-plugin-test'
-                                    )}
-                                </p>
-                                <div className="wpmudev-drive-auth-meta">
-                                    <span className="wpmudev-drive-chip">
-                                        {__('OAuth 2.0', 'wpmudev-plugin-test')}
-                                    </span>
-                                    <span className="wpmudev-drive-chip">
-                                        {__('Scoped access', 'wpmudev-plugin-test')}
-                                    </span>
+                            </div>
+                        </div>
+                        <div className="sui-box-body">
+                            <div className="wpmudev-drive-auth-compact">
+                                <div className="wpmudev-drive-auth-main">
+                                    <p className="wpmudev-drive-auth-intro">
+                                        {__('Connect your Google Drive account to run tests with real API calls. Your files are never stored.', 'wpmudev-plugin-test')}
+                                    </p>
+                                    <div className="wpmudev-drive-auth-badges">
+                                        <span className="wpmudev-drive-badge">
+                                            {__('OAuth 2.0', 'wpmudev-plugin-test')}
+                                        </span>
+                                        <span className="wpmudev-drive-badge">
+                                            {__('Scoped access', 'wpmudev-plugin-test')}
+                                        </span>
+                                    </div>
+                                </div>
+                                <div className="wpmudev-drive-auth-scopes">
+                                    <p className="wpmudev-drive-auth-scopes-title">
+                                        {__('This connection can:', 'wpmudev-plugin-test')}
+                                    </p>
+                                    <ul className="wpmudev-drive-scopes-list">
+                                        <li>{__('View and manage Google Drive files', 'wpmudev-plugin-test')}</li>
+                                        <li>{__('Upload new files to Drive', 'wpmudev-plugin-test')}</li>
+                                        <li>{__('Create folders in Drive', 'wpmudev-plugin-test')}</li>
+                                    </ul>
                                 </div>
                             </div>
-                            <div className="wpmudev-drive-auth-scopes">
-                                <p className="wpmudev-drive-auth-scopes-title">
-                                    {__(
-                                        'This connection will be able to:',
-                                        'wpmudev-plugin-test'
+                        </div>
+                        <div className="sui-box-footer">
+                            <div className="wpmudev-drive-auth-actions">
+                                <Button
+                                    variant="secondary"
+                                    className="wpmudev-drive-auth-change"
+                                    onClick={() => setShowCredentials(true)}
+                                >
+                                    {__('Change Credentials', 'wpmudev-plugin-test')}
+                                </Button>
+                                <Button
+                                    className="wpmudev-drive-auth-primary"
+                                    variant="primary"
+                                    onClick={handleAuth}
+                                    disabled={isLoading}
+                                >
+                                    {isLoading ? (
+                                        <>
+                                            <Spinner />
+                                            {__('Connecting...', 'wpmudev-plugin-test')}
+                                        </>
+                                    ) : (
+                                        __('Authenticate with Google Drive', 'wpmudev-plugin-test')
                                     )}
-                                </p>
-                                <ul>
-                                    <li>
-                                        {__('View and manage Google Drive files', 'wpmudev-plugin-test')}
-                                    </li>
-                                    <li>
-                                        {__('Upload new files to Drive', 'wpmudev-plugin-test')}
-                                    </li>
-                                    <li>
-                                        {__('Create folders in Drive', 'wpmudev-plugin-test')}
-                                    </li>
-                                </ul>
+                                </Button>
                             </div>
                         </div>
                     </div>
-                    <div className="sui-box-footer">
-                        <div className="sui-actions-left">
-                            <Button
-                                variant="secondary"
-                                className="wpmudev-drive-auth-change"
-                                onClick={() => setShowCredentials(true)}
-                            >
-                                {__('Change Credentials', 'wpmudev-plugin-test')}
-                            </Button>
-                        </div>
-                        <div className="sui-actions-right">
-                            <Button
-                                className="wpmudev-drive-auth-primary"
-                                variant="primary"
-                                onClick={handleAuth}
-                                disabled={isLoading}
-                            >
-                                {isLoading ? (
-                                    <>
-                                        <Spinner />
-                                        {__('Connecting...', 'wpmudev-plugin-test')}
-                                    </>
-                                ) : (
-                                    __('Authenticate with Google Drive', 'wpmudev-plugin-test')
-                                )}
-                            </Button>
-                        </div>
-                    </div>
-                </div>
                 </div>
             ) : (
                 <>
