@@ -468,3 +468,61 @@ add_filter( 'wpmudev_drive_files_cache_ttl', function( $ttl ) {
 // Cleanup transients hourly
 add_action( 'wpmudev_drive_cleanup_transients', [ $this, 'cleanup_expired_state_transients' ] );
 ```
+
+---
+
+## UI State Management
+
+### Credential & Authentication State Flow
+
+The React admin interface manages three key states:
+- `hasCredentials` - Whether Client ID/Secret are saved
+- `isAuthenticated` - Whether OAuth tokens are valid
+- `showCredentials` - Whether to display the credentials form
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           STATE FLOW DIAGRAM                                │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  [No Credentials] ──── Save Credentials ────▶ [Has Credentials,            │
+│        │                                        Not Authenticated]          │
+│        │                                              │                     │
+│        │                                              ▼                     │
+│        │                                        Authenticate                │
+│        │                                              │                     │
+│        │                                              ▼                     │
+│        │                                    [Authenticated,                 │
+│        │                                     Files Loaded]                  │
+│        │                                              │                     │
+│        │                    ┌──────────────────────────┴──────────────────┐ │
+│        │                    ▼                                              ▼│
+│        │              Disconnect                              Change Credentials
+│        │                    │                                              ││
+│        │                    ▼                                              ▼│
+│        │      [Has Credentials,                              [No Credentials]
+│        │       Not Authenticated]                            (form shown)  │
+│        │              │                                              │     │
+│        │              │                                              │     │
+│        │              └───────── Re-authenticate ────────────────────┘     │
+│        │                                                                    │
+│        └────────────────────────────────────────────────────────────────────┘
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### State Transitions
+
+| Action | Before State | After State | Server Call |
+|--------|--------------|-------------|-------------|
+| Save Credentials | `hasCredentials: false` | `hasCredentials: true, isAuthenticated: false` | `POST /save-credentials` |
+| Authenticate | `hasCredentials: true, isAuthenticated: false` | `isAuthenticated: true` | `POST /auth` → Google OAuth |
+| Disconnect | `isAuthenticated: true` | `isAuthenticated: false, hasCredentials: true` | `POST /disconnect` |
+| Change Credentials | Any authenticated state | `hasCredentials: false, isAuthenticated: false` | `POST /disconnect` (clears tokens) |
+
+### Key Behaviors
+
+1. **Save Credentials**: Always resets `isAuthenticated` to `false` because new credentials require fresh OAuth flow
+2. **Disconnect**: Keeps `hasCredentials` intact - only revokes OAuth tokens
+3. **Change Credentials**: Calls disconnect endpoint to clear tokens, then shows empty credentials form
+4. **OAuth Callback**: Sets `isAuthenticated` via URL parameter on successful return from Google

@@ -177,7 +177,7 @@ const WPMUDEV_DriveTest = () => {
             description: hasCredentials
                 ? __('Client ID and Secret stored securely.', 'wpmudev-plugin-test')
                 : __('Add your Google Cloud keys to continue.', 'wpmudev-plugin-test'),
-            state: hasCredentials ? 'success' : 'warning',
+            state: hasCredentials ? 'success' : 'error',
         },
         {
             id: 'auth',
@@ -188,7 +188,7 @@ const WPMUDEV_DriveTest = () => {
             description: isAuthenticated
                 ? __('Ready to manage Drive content.', 'wpmudev-plugin-test')
                 : __('Authenticate to unlock Drive actions.', 'wpmudev-plugin-test'),
-            state: isAuthenticated ? 'success' : 'neutral',
+            state: isAuthenticated ? 'success' : 'error',
         },
     ];
 
@@ -231,6 +231,14 @@ const WPMUDEV_DriveTest = () => {
 
             setHasCredentials(true);
             setShowCredentials(false);
+            // Reset authentication status when credentials are changed
+            setIsAuthenticated(false);
+            // Clear any stored tokens
+            setFiles([]);
+            setNextPageToken(null);
+            setHasMore(false);
+            setCurrentPage(1);
+            setPageTokenHistory([]);
             showNotice(
                 __('Credentials saved successfully.', 'wpmudev-plugin-test'),
                 'success'
@@ -347,6 +355,57 @@ const WPMUDEV_DriveTest = () => {
                 __('An unexpected error occurred while disconnecting.', 'wpmudev-plugin-test'),
                 'error'
             );
+            setIsLoading(false);
+        }
+    };
+
+    /**
+     * Handle changing credentials - clears tokens and shows credential form.
+     * This ensures a clean state when entering new credentials.
+     */
+    const handleChangeCredentials = async () => {
+        try {
+            setIsLoading(true);
+
+            // First, disconnect to clear any existing tokens
+            // This ensures the new credentials will require fresh authentication
+            const response = await fetch(
+                `${window.location.origin}/wp-json/wpmudev/v1/drive/disconnect`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-WP-Nonce': window.wpmudevDriveTest.nonce,
+                    },
+                }
+            );
+
+            // Even if disconnect fails, proceed to show credentials form
+            // The user wants to change credentials regardless
+
+            // Reset all state
+            setCredentials({ clientId: '', clientSecret: '' });
+            setHasCredentials(false);
+            setIsAuthenticated(false);
+            setFiles([]);
+            setNextPageToken(null);
+            setHasMore(false);
+            setCurrentPage(1);
+            setPageTokenHistory([]);
+            setShowCredentials(true);
+
+            setIsLoading(false);
+        } catch (error) {
+            // Even on error, show the credentials form
+            setCredentials({ clientId: '', clientSecret: '' });
+            setHasCredentials(false);
+            setIsAuthenticated(false);
+            setFiles([]);
+            setNextPageToken(null);
+            setHasMore(false);
+            setCurrentPage(1);
+            setPageTokenHistory([]);
+            setShowCredentials(true);
             setIsLoading(false);
         }
     };
@@ -705,8 +764,9 @@ const WPMUDEV_DriveTest = () => {
 
             <div className="wpmudev-drive-content">
             {showCredentials ? (
-                <div className="wpmudev-drive-grid wpmudev-drive-grid--two">
-                    <div className="sui-box wpmudev-drive-panel">
+                <>
+                <div className="wpmudev-drive-grid wpmudev-drive-grid--credentials">
+                    <div className="sui-box wpmudev-drive-panel wpmudev-drive-panel--credentials">
                     <div className="sui-box-header">
                         <h2 className="sui-box-title">
                             {__('Set Google Drive Credentials', 'wpmudev-plugin-test')}
@@ -783,6 +843,8 @@ const WPMUDEV_DriveTest = () => {
                         </div>
                     </div>
                     </div>
+                </div>
+                <div className="wpmudev-drive-guidance-container">
                     <div className="sui-box wpmudev-drive-panel wpmudev-drive-guidance">
                         <div className="wpmudev-drive-guidance__body">
                             <h3>{__('Google Cloud checklist', 'wpmudev-plugin-test')}</h3>
@@ -801,6 +863,7 @@ const WPMUDEV_DriveTest = () => {
                         </div>
                     </div>
                 </div>
+                </>
             ) : !isAuthenticated ? (
                 <div className="wpmudev-drive-grid wpmudev-drive-grid--auth">
                     {/* Single Authentication Pane */}
@@ -832,9 +895,17 @@ const WPMUDEV_DriveTest = () => {
                             <Button
                                 variant="secondary"
                                 className="wpmudev-drive-auth-change"
-                                onClick={() => setShowCredentials(true)}
+                                onClick={handleChangeCredentials}
+                                disabled={isLoading}
                             >
-                                    {__('Change credentials', 'wpmudev-plugin-test')}
+                                {isLoading ? (
+                                    <>
+                                        <Spinner />
+                                        {__('Clearing...', 'wpmudev-plugin-test')}
+                                    </>
+                                ) : (
+                                    __('Change credentials', 'wpmudev-plugin-test')
+                                )}
                             </Button>
                             <Button
                                 className="wpmudev-drive-auth-primary"
@@ -997,7 +1068,7 @@ const WPMUDEV_DriveTest = () => {
                                     <Button
                                         variant="secondary"
                                         className="wpmudev-drive-connection-btn"
-                                        onClick={() => setShowCredentials(true)}
+                                        onClick={handleChangeCredentials}
                                         disabled={isLoading}
                                     >
                                         {__('Change credentials', 'wpmudev-plugin-test')}
