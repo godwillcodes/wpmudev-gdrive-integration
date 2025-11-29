@@ -27,6 +27,20 @@ use Google_Service_Drive_DriveFile;
 class Drive_API extends Base {
 
 	/**
+	 * Rate limit: max requests per window.
+	 *
+	 * @var int
+	 */
+	const RATE_LIMIT_MAX_REQUESTS = 10;
+
+	/**
+	 * Rate limit: time window in seconds.
+	 *
+	 * @var int
+	 */
+	const RATE_LIMIT_WINDOW = 60;
+
+	/**
 	 * Google Client instance.
 	 *
 	 * @var Google_Client
@@ -65,6 +79,12 @@ class Drive_API extends Base {
 		$this->setup_google_client();
 
 		add_action( 'rest_api_init', array( $this, 'register_routes' ) );
+		add_action( 'wpmudev_drive_cleanup_transients', array( $this, 'cleanup_expired_state_transients' ) );
+
+		// Schedule transient cleanup if not already scheduled.
+		if ( ! wp_next_scheduled( 'wpmudev_drive_cleanup_transients' ) ) {
+			wp_schedule_event( time(), 'hourly', 'wpmudev_drive_cleanup_transients' );
+		}
 	}
 
 	/**
@@ -214,6 +234,37 @@ class Drive_API extends Base {
 						'required'          => false,
 						'sanitize_callback' => 'sanitize_text_field',
 					),
+					'order_by'   => array(
+						'type'              => 'string',
+						'required'          => false,
+						'default'           => 'modifiedTime desc',
+						'sanitize_callback' => 'sanitize_text_field',
+						'validate_callback' => function ( $param ) {
+							// Allowed orderBy values for Google Drive API.
+							$allowed = array(
+								'createdTime',
+								'folder',
+								'modifiedByMeTime',
+								'modifiedTime',
+								'name',
+								'name_natural',
+								'quotaBytesUsed',
+								'recency',
+								'sharedWithMeTime',
+								'starred',
+								'viewedByMeTime',
+							);
+							// Extract field name (remove asc/desc suffix).
+							$field = preg_replace( '/\s+(asc|desc)$/i', '', trim( $param ) );
+							return in_array( $field, $allowed, true );
+						},
+					),
+					'no_cache'   => array(
+						'type'              => 'boolean',
+						'required'          => false,
+						'default'           => false,
+						'sanitize_callback' => 'rest_sanitize_boolean',
+					),
 				),
 			)
 		);
@@ -266,10 +317,20 @@ class Drive_API extends Base {
 	 * @return WP_REST_Response|WP_Error
 	 */
 	public function save_credentials( WP_REST_Request $request ) {
+		$user_id = get_current_user_id();
+
+		// Check rate limit.
+		$rate_check = $this->check_rate_limit( 'save_credentials', $user_id );
+		if ( is_wp_error( $rate_check ) ) {
+			return $rate_check;
+		}
+
 		$client_id     = trim( (string) $request->get_param( 'client_id' ) );
 		$client_secret = trim( (string) $request->get_param( 'client_secret' ) );
 
 		if ( '' === $client_id || '' === $client_secret ) {
+			$this->log_audit_event( 'credentials_save_failed', $user_id, array( 'reason' => 'missing_fields' ) );
+
 			return new WP_Error(
 				'invalid_credentials',
 				__( 'Both Client ID and Client Secret are required.', 'wpmudev-plugin-test' ),
@@ -277,12 +338,25 @@ class Drive_API extends Base {
 			);
 		}
 
+		// Check if credentials are being updated (not first-time setup).
+		$existing_creds = get_option( 'wpmudev_plugin_tests_auth', array() );
+		$is_update      = ! empty( $existing_creds['client_id'] );
+
 		$credentials = array(
 			'client_id'     => $client_id,
 			'client_secret' => $this->encrypt_secret( $client_secret ),
 		);
 
 		update_option( 'wpmudev_plugin_tests_auth', $credentials );
+
+		// Log the audit event.
+		$this->log_audit_event(
+			$is_update ? 'credentials_updated' : 'credentials_saved',
+			$user_id,
+			array(
+				'client_id_prefix' => substr( $client_id, 0, 10 ) . '...',
+			)
+		);
 
 		// Reinitialize Google Client with new credentials.
 		$this->setup_google_client();
@@ -418,14 +492,24 @@ class Drive_API extends Base {
 			// Generate a random state token for CSRF protection.
 			$state_token = wp_generate_password( 32, false );
 			
-			// Store state token in transient (expires in 10 minutes).
-			// Include user ID to prevent cross-user attacks.
+			// Store state token as the transient KEY (not user ID).
+			// This allows multiple auth attempts without overwriting each other.
+			// Value contains user ID for audit purposes.
 			$user_id = get_current_user_id();
 			set_transient(
-				'wpmudev_drive_oauth_state_' . $user_id,
-				$state_token,
-				600 // 10 minutes.
+				'wpmudev_drive_oauth_state_' . $state_token,
+				$user_id,
+				1800 // 30 minutes - gives user time to complete OAuth flow.
 			);
+
+			// Log the auth initiation for debugging.
+			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+				error_log( sprintf(
+					'WPMUDEV Drive: OAuth initiated by user %d, state token: %s...',
+					$user_id,
+					substr( $state_token, 0, 8 )
+				) );
+			}
 
 			// Set state parameter on Google Client for CSRF protection.
 			$this->client->setState( $state_token );
@@ -502,24 +586,19 @@ class Drive_API extends Base {
 			exit;
 		}
 
-		// Check if state exists in any user's transient (state is user-specific).
-		global $wpdb;
-		// Escape the base pattern and append SQL wildcard outside of prepare().
-		// Using %s in prepare() would escape the % as a literal character.
-		$pattern = $wpdb->esc_like( '_transient_wpmudev_drive_oauth_state_' ) . '%';
-		$transient_name = $wpdb->get_var(
-			$wpdb->prepare(
-				"SELECT option_name FROM {$wpdb->options} 
-				WHERE option_name LIKE %s 
-				AND option_value = %s
-				LIMIT 1",
-				$pattern,
-				$state
-			)
-		);
+		// Check if state exists as a transient key.
+		// State token IS the key, value is the user ID who initiated the flow.
+		$state_user_id = get_transient( 'wpmudev_drive_oauth_state_' . $state );
 
-		if ( empty( $transient_name ) ) {
-			// State not found in any transient - possible CSRF attack or expired state.
+		if ( false === $state_user_id ) {
+			// State not found - either expired (30 min) or invalid.
+			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+				error_log( sprintf(
+					'WPMUDEV Drive: OAuth callback failed - state not found: %s...',
+					substr( $state, 0, 8 )
+				) );
+			}
+
 			wp_safe_redirect(
 				admin_url(
 					add_query_arg(
@@ -535,9 +614,16 @@ class Drive_API extends Base {
 			exit;
 		}
 
-		// Extract user ID from transient name and delete the used state token to prevent replay attacks.
-		if ( preg_match( '/_transient_wpmudev_drive_oauth_state_(\d+)/', $transient_name, $matches ) ) {
-			delete_transient( 'wpmudev_drive_oauth_state_' . $matches[1] );
+		// Delete the used state token immediately to prevent replay attacks.
+		delete_transient( 'wpmudev_drive_oauth_state_' . $state );
+
+		// Log successful state validation.
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+			error_log( sprintf(
+				'WPMUDEV Drive: OAuth state validated for user %d, state: %s...',
+				$state_user_id,
+				substr( $state, 0, 8 )
+			) );
 		}
 
 		// Check for OAuth errors.
@@ -638,6 +724,17 @@ class Drive_API extends Base {
 
 			// Update drive service with new token.
 			$this->drive_service = new Google_Service_Drive( $this->client );
+
+			// Log successful authentication.
+			// Note: We can't get current user in callback (public endpoint), so log with user 0.
+			// The state transient contains the user ID who initiated the auth.
+			$this->log_audit_event(
+				'auth_success',
+				0, // Public callback, user context from state.
+				array(
+					'has_refresh_token' => isset( $access_token['refresh_token'] ),
+				)
+			);
 
 			// Redirect back to admin page with success.
 			wp_safe_redirect(
@@ -761,10 +858,12 @@ class Drive_API extends Base {
 		}
 
 		try {
-			// Get pagination parameters from request.
-			$page_size = $request->get_param( 'page_size' );
+			// Get parameters from request.
+			$page_size  = $request->get_param( 'page_size' );
 			$page_token = $request->get_param( 'page_token' );
-			$query = $request->get_param( 'query' );
+			$query      = $request->get_param( 'query' );
+			$order_by   = $request->get_param( 'order_by' );
+			$no_cache   = $request->get_param( 'no_cache' );
 
 			// Validate and set default page size (between 1 and 1000, default 10).
 			if ( ! empty( $page_size ) ) {
@@ -786,16 +885,45 @@ class Drive_API extends Base {
 				$query = sanitize_text_field( $query );
 			}
 
+			// Default orderBy: most recently modified first.
+			if ( empty( $order_by ) ) {
+				$order_by = 'modifiedTime desc';
+			} else {
+				$order_by = sanitize_text_field( $order_by );
+			}
+
+			// Generate cache key based on request parameters.
+			$cache_key = 'wpmudev_drive_files_' . md5(
+				wp_json_encode(
+					array(
+						'page_size'  => $page_size,
+						'page_token' => $page_token,
+						'query'      => $query,
+						'order_by'   => $order_by,
+					)
+				)
+			);
+
+			// Check cache first (unless no_cache is true).
+			if ( ! $no_cache ) {
+				$cached_response = get_transient( $cache_key );
+				if ( false !== $cached_response ) {
+					$cached_response['cached'] = true;
+					return new WP_REST_Response( $cached_response, 200 );
+				}
+			}
+
 			// Build options array for Google Drive API.
 			$options = array(
 				'pageSize' => $page_size,
 				'q'        => $query,
+				'orderBy'  => $order_by,
 				'fields'   => 'nextPageToken,files(id,name,mimeType,size,modifiedTime,webViewLink)',
 			);
 
 			// Add page token if provided (for pagination).
 			if ( ! empty( $page_token ) ) {
-				$page_token = sanitize_text_field( $page_token );
+				$page_token         = sanitize_text_field( $page_token );
 				$options['pageToken'] = $page_token;
 			}
 
@@ -821,16 +949,24 @@ class Drive_API extends Base {
 			// Get next page token if available.
 			$next_page_token = $results->getNextPageToken();
 
-			// Return structured response with pagination info.
-			return new WP_REST_Response(
-				array(
-					'files'         => $file_list,
-					'nextPageToken' => $next_page_token,
-					'pageSize'      => $page_size,
-					'hasMore'       => ! empty( $next_page_token ),
-				),
-				200
+			// Build response data.
+			$response_data = array(
+				'files'         => $file_list,
+				'nextPageToken' => $next_page_token,
+				'pageSize'      => $page_size,
+				'orderBy'       => $order_by,
+				'hasMore'       => ! empty( $next_page_token ),
+				'cached'        => false,
 			);
+
+			// Cache the response for 30 seconds.
+			$cache_ttl = apply_filters( 'wpmudev_drive_files_cache_ttl', 30 );
+			if ( $cache_ttl > 0 ) {
+				set_transient( $cache_key, $response_data, $cache_ttl );
+			}
+
+			// Return structured response with pagination info.
+			return new WP_REST_Response( $response_data, 200 );
 
 		} catch ( \Google_Service_Exception $e ) {
 			// Handle Google API specific errors.
@@ -1180,5 +1316,183 @@ class Drive_API extends Base {
 				array( 'status' => 500 )
 			);
 		}
+	}
+
+	/**
+	 * Check rate limit for a specific action.
+	 *
+	 * @param string $action Action identifier (e.g., 'save_credentials', 'auth').
+	 * @param int    $user_id User ID to check rate limit for.
+	 *
+	 * @return bool|WP_Error True if within limit, WP_Error if rate limited.
+	 */
+	private function check_rate_limit( string $action, int $user_id ) {
+		$transient_key = sprintf( 'wpmudev_drive_rate_%s_%d', $action, $user_id );
+		$requests      = get_transient( $transient_key );
+
+		if ( false === $requests ) {
+			$requests = array();
+		}
+
+		$now = time();
+
+		// Remove requests outside the time window.
+		$requests = array_filter(
+			$requests,
+			function ( $timestamp ) use ( $now ) {
+				return ( $now - $timestamp ) < self::RATE_LIMIT_WINDOW;
+			}
+		);
+
+		// Check if rate limit exceeded.
+		if ( count( $requests ) >= self::RATE_LIMIT_MAX_REQUESTS ) {
+			$this->log_audit_event( 'rate_limit_exceeded', $user_id, array( 'action' => $action ) );
+
+			return new WP_Error(
+				'rate_limit_exceeded',
+				sprintf(
+					/* translators: %d: number of seconds */
+					__( 'Too many requests. Please wait %d seconds before trying again.', 'wpmudev-plugin-test' ),
+					self::RATE_LIMIT_WINDOW
+				),
+				array( 'status' => 429 )
+			);
+		}
+
+		// Add current request.
+		$requests[] = $now;
+		set_transient( $transient_key, $requests, self::RATE_LIMIT_WINDOW );
+
+		return true;
+	}
+
+	/**
+	 * Log an audit event for security-sensitive actions.
+	 *
+	 * @param string $event   Event type (e.g., 'credentials_saved', 'auth_success').
+	 * @param int    $user_id User ID who triggered the event.
+	 * @param array  $data    Additional event data.
+	 *
+	 * @return void
+	 */
+	private function log_audit_event( string $event, int $user_id, array $data = array() ) {
+		$log_entry = array(
+			'timestamp'  => current_time( 'mysql' ),
+			'event'      => $event,
+			'user_id'    => $user_id,
+			'user_login' => get_userdata( $user_id ) ? get_userdata( $user_id )->user_login : 'unknown',
+			'ip_address' => $this->get_client_ip(),
+			'user_agent' => isset( $_SERVER['HTTP_USER_AGENT'] ) ? sanitize_text_field( wp_unslash( $_SERVER['HTTP_USER_AGENT'] ) ) : '',
+			'data'       => $data,
+		);
+
+		// Get existing audit log.
+		$audit_log = get_option( 'wpmudev_drive_audit_log', array() );
+
+		// Add new entry at the beginning.
+		array_unshift( $audit_log, $log_entry );
+
+		// Keep only last 100 entries.
+		$audit_log = array_slice( $audit_log, 0, 100 );
+
+		update_option( 'wpmudev_drive_audit_log', $audit_log, false );
+
+		// Also log to error_log for server-side monitoring.
+		if ( function_exists( 'error_log' ) ) {
+			error_log(
+				sprintf(
+					'WPMUDEV Drive Audit: [%s] User %d (%s) - %s - IP: %s',
+					$event,
+					$user_id,
+					$log_entry['user_login'],
+					wp_json_encode( $data ),
+					$log_entry['ip_address']
+				)
+			);
+		}
+	}
+
+	/**
+	 * Get client IP address.
+	 *
+	 * @return string Client IP address.
+	 */
+	private function get_client_ip(): string {
+		$ip_keys = array(
+			'HTTP_CF_CONNECTING_IP', // Cloudflare.
+			'HTTP_X_FORWARDED_FOR',
+			'HTTP_X_REAL_IP',
+			'REMOTE_ADDR',
+		);
+
+		foreach ( $ip_keys as $key ) {
+			if ( ! empty( $_SERVER[ $key ] ) ) {
+				$ip = sanitize_text_field( wp_unslash( $_SERVER[ $key ] ) );
+				// Handle comma-separated IPs (X-Forwarded-For).
+				if ( strpos( $ip, ',' ) !== false ) {
+					$ip = trim( explode( ',', $ip )[0] );
+				}
+				if ( filter_var( $ip, FILTER_VALIDATE_IP ) ) {
+					return $ip;
+				}
+			}
+		}
+
+		return 'unknown';
+	}
+
+	/**
+	 * Cleanup expired OAuth state transients.
+	 *
+	 * This runs hourly via WP-Cron to remove orphaned state tokens
+	 * that were never used (e.g., user abandoned OAuth flow).
+	 * State transients have a 30-minute TTL.
+	 *
+	 * @return void
+	 */
+	public function cleanup_expired_state_transients() {
+		global $wpdb;
+
+		// Find all state transients (key format: _transient_wpmudev_drive_oauth_state_{32-char-token}).
+		$state_transients = $wpdb->get_col(
+			$wpdb->prepare(
+				"SELECT option_name FROM {$wpdb->options} 
+				WHERE option_name LIKE %s 
+				AND option_name NOT LIKE %s",
+				$wpdb->esc_like( '_transient_wpmudev_drive_oauth_state_' ) . '%',
+				$wpdb->esc_like( '_transient_timeout_' ) . '%'
+			)
+		);
+
+		$cleaned = 0;
+		foreach ( $state_transients as $transient_name ) {
+			// Extract the transient key without the _transient_ prefix.
+			$key = str_replace( '_transient_', '', $transient_name );
+
+			// Check if the transient has expired by looking at its timeout.
+			$timeout = get_option( '_transient_timeout_' . $key );
+			if ( false !== $timeout && (int) $timeout < time() ) {
+				delete_transient( $key );
+				$cleaned++;
+			}
+		}
+
+		if ( $cleaned > 0 ) {
+			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+				error_log( sprintf( 'WPMUDEV Drive: Cleaned up %d expired OAuth state transients.', $cleaned ) );
+			}
+		}
+	}
+
+	/**
+	 * Get audit log entries.
+	 *
+	 * @param int $limit Maximum number of entries to return.
+	 *
+	 * @return array Audit log entries.
+	 */
+	public function get_audit_log( int $limit = 50 ): array {
+		$audit_log = get_option( 'wpmudev_drive_audit_log', array() );
+		return array_slice( $audit_log, 0, $limit );
 	}
 }

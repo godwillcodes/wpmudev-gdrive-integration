@@ -115,6 +115,19 @@ class Posts_Maintenance extends Base {
 			)
 		);
 
+		// Server-Sent Events endpoint for real-time progress updates.
+		register_rest_route(
+			'wpmudev/v1/posts-maintenance',
+			'/stream',
+			array(
+				'methods'             => 'GET',
+				'callback'            => array( $this, 'stream_progress' ),
+				'permission_callback' => function () {
+					return current_user_can( 'manage_options' );
+				},
+			)
+		);
+
 		register_rest_route(
 			'wpmudev/v1/posts-maintenance',
 			'/settings',
@@ -282,6 +295,95 @@ class Posts_Maintenance extends Base {
 				'message' => __( 'Scan record deleted successfully.', 'wpmudev-plugin-test' ),
 			)
 		);
+	}
+
+	/**
+	 * Streams real-time progress updates via Server-Sent Events (SSE).
+	 *
+	 * This endpoint keeps the connection open and sends progress updates
+	 * every second until the scan is complete or the client disconnects.
+	 *
+	 * @return void
+	 */
+	public function stream_progress() {
+		// Disable output buffering for real-time streaming.
+		if ( ob_get_level() ) {
+			ob_end_clean();
+		}
+
+		// Set SSE headers.
+		header( 'Content-Type: text/event-stream' );
+		header( 'Cache-Control: no-cache' );
+		header( 'Connection: keep-alive' );
+		header( 'X-Accel-Buffering: no' ); // Disable nginx buffering.
+
+		// Prevent PHP from timing out.
+		set_time_limit( 0 );
+		ignore_user_abort( false );
+
+		$service = Posts_Maintenance_Service::instance();
+		$last_processed = -1;
+		$idle_count = 0;
+		$max_idle = 60; // Close connection after 60 seconds of no active job.
+
+		while ( true ) {
+			// Check if client disconnected.
+			if ( connection_aborted() ) {
+				break;
+			}
+
+			// Get current job status.
+			$job = $service->format_job_for_response();
+			$last_run = $service->get_last_run();
+
+			// Build event data.
+			$data = array(
+				'job'       => $job,
+				'lastRun'   => $last_run,
+				'timestamp' => time(),
+			);
+
+			// Send SSE event.
+			echo "event: progress\n";
+			echo 'data: ' . wp_json_encode( $data ) . "\n\n";
+
+			// Flush output to client immediately.
+			if ( ob_get_level() ) {
+				ob_flush();
+			}
+			flush();
+
+			// Check if job is active.
+			$is_active = $job && isset( $job['status'] ) && in_array( $job['status'], array( 'pending', 'running' ), true );
+
+			if ( $is_active ) {
+				$idle_count = 0;
+
+				// Check if progress changed.
+				$current_processed = isset( $job['processed'] ) ? (int) $job['processed'] : 0;
+				if ( $current_processed !== $last_processed ) {
+					$last_processed = $current_processed;
+				}
+			} else {
+				$idle_count++;
+
+				// Close connection if idle too long.
+				if ( $idle_count >= $max_idle ) {
+					echo "event: close\n";
+					echo "data: {\"reason\": \"idle_timeout\"}\n\n";
+					if ( ob_get_level() ) {
+						ob_flush();
+					}
+					flush();
+					break;
+				}
+			}
+
+			// Wait 1 second before next update.
+			sleep( 1 );
+		}
+
+		exit;
 	}
 
 	/**

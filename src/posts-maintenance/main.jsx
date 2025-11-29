@@ -17,6 +17,18 @@ const PlayIcon = () => (
     </svg>
 );
 
+const LiveIcon = () => (
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: '6px' }}>
+        <circle cx="6" cy="6" r="4" fill="#22c55e">
+            <animate attributeName="opacity" values="1;0.4;1" dur="1.5s" repeatCount="indefinite"/>
+        </circle>
+        <circle cx="6" cy="6" r="6" stroke="#22c55e" strokeWidth="1" fill="none" opacity="0.5">
+            <animate attributeName="r" values="4;6;4" dur="1.5s" repeatCount="indefinite"/>
+            <animate attributeName="opacity" values="0.5;0;0.5" dur="1.5s" repeatCount="indefinite"/>
+        </circle>
+    </svg>
+);
+
 const WPMUDEV_Posts_Maintenance = () => {
     const config = window.wpmudevPostsMaintenance || {};
     
@@ -30,6 +42,8 @@ const WPMUDEV_Posts_Maintenance = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [notice, setNotice] = useState({ message: '', type: '' });
     const pollingIntervalRef = useRef(null);
+    const eventSourceRef = useRef(null);
+    const [isStreaming, setIsStreaming] = useState(false);
     const [activeTab, setActiveTab] = useState('scan'); // 'scan' or 'settings'
     const [settings, setSettings] = useState(config.settings || {
         auto_scan_enabled: true,
@@ -96,6 +110,73 @@ const WPMUDEV_Posts_Maintenance = () => {
         }
     }, []);
 
+    // Start Server-Sent Events connection for real-time updates
+    const startStreaming = useCallback(() => {
+        // Close existing connection if any
+        if (eventSourceRef.current) {
+            eventSourceRef.current.close();
+        }
+
+        // Build SSE URL with nonce for authentication
+        const streamUrl = `${config.restBase}posts-maintenance/stream?_wpnonce=${config.nonce}`;
+        
+        try {
+            const eventSource = new EventSource(streamUrl, { withCredentials: true });
+            eventSourceRef.current = eventSource;
+
+            eventSource.addEventListener('progress', (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    
+                    if (data.job) {
+                        setJob(data.job);
+                        
+                        // Check if job completed
+                        if (!['pending', 'running'].includes(data.job.status)) {
+                            stopStreaming();
+                        }
+                    }
+                    
+                    if (data.lastRun) {
+                        setLastRun(data.lastRun);
+                    }
+                } catch (e) {
+                    console.error('SSE parse error:', e);
+                }
+            });
+
+            eventSource.addEventListener('close', () => {
+                stopStreaming();
+            });
+
+            eventSource.onerror = (error) => {
+                console.warn('SSE connection error, falling back to polling:', error);
+                stopStreaming();
+                // Fall back to polling if SSE fails
+                startPolling();
+            };
+
+            eventSource.onopen = () => {
+                setIsStreaming(true);
+                // Stop polling since SSE is working
+                stopPolling();
+            };
+
+        } catch (error) {
+            console.warn('SSE not supported, using polling:', error);
+            startPolling();
+        }
+    }, [config, stopPolling, startPolling]);
+
+    // Stop SSE connection
+    const stopStreaming = useCallback(() => {
+        if (eventSourceRef.current) {
+            eventSourceRef.current.close();
+            eventSourceRef.current = null;
+        }
+        setIsStreaming(false);
+    }, []);
+
     const handleStartScan = useCallback(async () => {
         if (selectedPostTypes.length === 0) {
             showNotice(config.strings.selectPostTypes, 'error');
@@ -142,7 +223,8 @@ const WPMUDEV_Posts_Maintenance = () => {
                     setLastRun(data.lastRun);
                 }
                 showNotice(data.message || config.strings.scanStarted, 'success');
-                startPolling();
+                // Use SSE for real-time updates, with polling as fallback
+                startStreaming();
             } else {
                 const message = data.message || data.data?.message || config.strings.scanFailed;
                 showNotice(message, 'error');
@@ -153,7 +235,7 @@ const WPMUDEV_Posts_Maintenance = () => {
         } finally {
             setIsLoading(false);
         }
-    }, [selectedPostTypes, isLoading, config, showNotice, startPolling]);
+    }, [selectedPostTypes, isLoading, config, showNotice, startStreaming]);
 
     const handleRefresh = useCallback(async () => {
         if (isLoading) {
@@ -252,19 +334,22 @@ const WPMUDEV_Posts_Maintenance = () => {
         return () => clearInterval(interval);
     }, [nextScan]);
 
-    // Initialize polling if job is active
+    // Initialize SSE streaming if job is active (with polling fallback)
     useEffect(() => {
         if (job && ['pending', 'running'].includes(job.status)) {
-            startPolling();
+            // Use SSE for real-time updates
+            startStreaming();
         } else {
-            // Stop polling if job is not active
+            // Stop streaming/polling if job is not active
+            stopStreaming();
             stopPolling();
         }
 
         return () => {
+            stopStreaming();
             stopPolling();
         };
-    }, [job, startPolling, stopPolling]);
+    }, [job, startStreaming, stopStreaming, stopPolling]);
     
     // Clear stale jobs - only keep active jobs
     useEffect(() => {
@@ -693,9 +778,17 @@ const WPMUDEV_Posts_Maintenance = () => {
                 {/* Scan Progress Pane */}
                 <div className="sui-box wpmudev-posts-panel wpmudev-posts-panel--progress">
                     <div className="sui-box-header">
-                        <h2 className="sui-box-title">
-                            {__('Scan Progress', 'wpmudev-plugin-test')}
-                        </h2>
+                        <div className="wpmudev-progress-header-row">
+                            <h2 className="sui-box-title">
+                                {__('Scan Progress', 'wpmudev-plugin-test')}
+                            </h2>
+                            {isStreaming && isJobActive && (
+                                <span className="wpmudev-live-indicator">
+                                    <LiveIcon />
+                                    {__('Live', 'wpmudev-plugin-test')}
+                                </span>
+                            )}
+                        </div>
                         <p className="sui-description">
                             {__('Monitor the current scan operation in real-time.', 'wpmudev-plugin-test')}
                         </p>
@@ -703,7 +796,7 @@ const WPMUDEV_Posts_Maintenance = () => {
                     <div className="sui-box-body">
                         <div className="wpmudev-progress-wrapper">
                             <div className="wpmudev-progress-bar">
-                                <span style={{ width: `${progress}%` }}></span>
+                                <span style={{ width: `${progress}%`, transition: 'width 0.3s ease-out' }}></span>
                             </div>
                             <div className="wpmudev-progress-meta">
                                 <strong>

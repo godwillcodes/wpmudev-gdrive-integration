@@ -138,3 +138,102 @@ All metrics are collected during the Posts Maintenance scan process:
 - Individual metrics (blank content, missing images) are displayed separately for detailed analysis
 - The pie chart provides visual context for the published vs non-published post distribution
 
+---
+
+## Dependency Management & Namespace Isolation
+
+### Problem Statement
+
+WordPress plugins that include third-party libraries via Composer can conflict with other plugins that include different versions of the same libraries. For example, if two plugins both include the Google API Client library but at different versions, PHP will load whichever version is autoloaded first, potentially causing fatal errors or unexpected behavior in the other plugin.
+
+### Solution: PHP-Scoper Namespace Prefixing
+
+We use [PHP-Scoper](https://github.com/humbug/php-scoper) to prefix all vendor namespaces with our plugin's namespace, ensuring complete isolation from other plugins.
+
+### Implementation
+
+#### Prefix Configuration
+
+All vendor classes are prefixed with:
+```
+WPMUDEV\PluginTest\Vendor\
+```
+
+For example:
+- `Google_Client` becomes `WPMUDEV\PluginTest\Vendor\Google_Client`
+- `Google\Service\Drive` becomes `WPMUDEV\PluginTest\Vendor\Google\Service\Drive`
+
+#### Configuration File
+
+The `scoper.inc.php` file defines:
+
+1. **Prefix**: `WPMUDEV\PluginTest\Vendor`
+2. **Excluded Namespaces**: WordPress core classes, WP-CLI, and our own namespace
+3. **Excluded Classes**: WordPress core classes (`WP_Error`, `WP_REST_Request`, etc.)
+4. **Excluded Constants**: WordPress and plugin constants
+
+#### Build Process
+
+To generate prefixed dependencies:
+
+```bash
+# Install dev dependencies (includes PHP-Scoper)
+composer install
+
+# Run the prefixing process
+composer run prefix-dependencies
+```
+
+This creates a `vendor-prefixed/` directory with all dependencies properly namespaced.
+
+#### Production Build
+
+The Gruntfile.js build process:
+
+1. Runs `composer prefix-dependencies` to create prefixed vendor
+2. Copies `vendor-prefixed/` instead of `vendor/` to the release
+3. Updates autoloader to use prefixed classes
+
+### Benefits
+
+1. **No Conflicts**: Our Google API Client cannot conflict with other plugins' versions
+2. **Version Independence**: We can use any version without worrying about other plugins
+3. **Predictable Behavior**: Our code always uses our bundled dependencies
+4. **WordPress Ecosystem Friendly**: Follows best practices for plugin development
+
+### Excluded from Prefixing
+
+The following are intentionally NOT prefixed:
+
+- **WordPress Core**: All WP_* classes and functions
+- **WP-CLI**: Command-line interface classes
+- **Our Plugin**: `WPMUDEV\PluginTest\*` namespace
+- **PHP Built-ins**: Native PHP classes and functions
+
+### Alternative Approaches Considered
+
+1. **Mozart**: Similar tool but less actively maintained
+2. **Strauss**: Newer alternative, but PHP-Scoper has better ecosystem support
+3. **Manual Prefixing**: Too error-prone and maintenance-heavy
+4. **WordPress HTTP API Wrapper**: Would require rewriting all Google API integration
+
+### Verification
+
+To verify namespace isolation is working:
+
+```bash
+# Check that Google classes are prefixed
+grep -r "namespace WPMUDEV\\\\PluginTest\\\\Vendor\\\\Google" vendor-prefixed/
+
+# Verify no unprefixed Google classes remain
+grep -r "^namespace Google\\\\" vendor-prefixed/ | grep -v "WPMUDEV"
+# Should return no results
+```
+
+### Notes
+
+- PHP-Scoper requires PHP 7.4+ for development (runtime can be lower)
+- The prefixed vendor directory is ~20% larger due to namespace changes
+- Build time increases by ~30 seconds for the prefixing step
+- Always test thoroughly after updating dependencies
+

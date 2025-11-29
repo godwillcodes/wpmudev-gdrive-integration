@@ -1,6 +1,6 @@
 import { createRoot, StrictMode, useState, useEffect, useCallback } from '@wordpress/element';
 import { __ } from '@wordpress/i18n';
-import { Button, Spinner, Notice, Modal } from '@wordpress/components';
+import { Button, Spinner, Notice } from '@wordpress/components';
 
 import "./scss/style.scss";
 
@@ -28,9 +28,6 @@ const NextIcon = () => (
 const WPMUDEV_Posts_Maintenance_History = () => {
     const config = window.wpmudevPostsMaintenanceHistory;
     const [history, setHistory] = useState([]);
-    const [selectedScan, setSelectedScan] = useState(null);
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [isLoading, setIsLoading] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
     const [notice, setNotice] = useState({ message: '', type: '' });
     const [currentPage, setCurrentPage] = useState(1);
@@ -40,49 +37,6 @@ const WPMUDEV_Posts_Maintenance_History = () => {
         setNotice({ message, type });
         setTimeout(() => setNotice({ message: '', type: '' }), 5000);
     }, []);
-
-    const loadHistory = useCallback(async () => {
-        // History is passed from PHP via localized script
-        // For now, we'll fetch it from the status endpoint or pass it via config
-        // This would need to be added to the PHP enqueue
-    }, []);
-
-    const loadScanDetails = useCallback(async (scanId) => {
-        setIsLoading(true);
-        try {
-            const url = `${config.restBase}${config.endpoints.get}${scanId}`;
-            const response = await fetch(url, {
-                method: 'GET',
-                headers: {
-                    'X-WP-Nonce': config.nonce,
-                    'Content-Type': 'application/json',
-                },
-            });
-
-            const data = await response.json();
-
-            // Check if response is an error
-            if (!response.ok || data.code || data.message) {
-                const errorMessage = data.message || config.strings.loadError || __('Failed to load scan details.', 'wpmudev-plugin-test');
-                showNotice(errorMessage, 'error');
-                setIsLoading(false);
-                return;
-            }
-
-            // Check if we have valid scan data
-            if (data && (data.scan_id || data.timestamp)) {
-                setSelectedScan(data);
-                setIsModalOpen(true);
-            } else {
-                showNotice(config.strings.loadError || __('Failed to load scan details.', 'wpmudev-plugin-test'), 'error');
-            }
-        } catch (error) {
-            console.error('Load scan details error:', error);
-            showNotice(config.strings.loadError || __('Failed to load scan details.', 'wpmudev-plugin-test'), 'error');
-        } finally {
-            setIsLoading(false);
-        }
-    }, [config, showNotice]);
 
     const deleteScan = useCallback(async (scanId) => {
         if (!window.confirm(config.strings.deleteConfirm)) {
@@ -271,13 +225,7 @@ const WPMUDEV_Posts_Maintenance_History = () => {
                                         <div className="wpmudev-scan-record-actions">
                                             <Button
                                                 variant="secondary"
-                                                onClick={() => loadScanDetails(record.scan_id)}
-                                                disabled={isLoading}
-                                            >
-                                                {__('View Details', 'wpmudev-plugin-test')}
-                                            </Button>
-                                            <Button
-                                                variant="secondary"
+                                                className="wpmudev-btn-danger"
                                                 onClick={() => deleteScan(record.scan_id)}
                                                 disabled={isDeleting}
                                                 isBusy={isDeleting}
@@ -332,99 +280,6 @@ const WPMUDEV_Posts_Maintenance_History = () => {
                     </>
                 )}
             </div>
-
-            {isModalOpen && (
-                <Modal
-                    title={__('Scan Details', 'wpmudev-plugin-test')}
-                    onRequestClose={() => {
-                        setIsModalOpen(false);
-                        setSelectedScan(null);
-                    }}
-                    className="wpmudev-scan-details-modal"
-                    isDismissible={true}
-                >
-                    {isLoading ? (
-                        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '40px', minHeight: '200px' }}>
-                            <Spinner />
-                        </div>
-                    ) : selectedScan ? (
-                        <div className="wpmudev-scan-details">
-                            <div className="wpmudev-scan-details-section">
-                                <h4>{__('Basic Information', 'wpmudev-plugin-test')}</h4>
-                                <table className="wpmudev-scan-details-table">
-                                    <tbody>
-                                        <tr>
-                                            <td><strong>{__('Date:', 'wpmudev-plugin-test')}</strong></td>
-                                            <td>{selectedScan.timestamp ? new Date(selectedScan.timestamp * 1000).toLocaleString() : 'N/A'}</td>
-                                        </tr>
-                                        <tr>
-                                            <td><strong>{__('Status:', 'wpmudev-plugin-test')}</strong></td>
-                                            <td>{selectedScan.status ? selectedScan.status.charAt(0).toUpperCase() + selectedScan.status.slice(1) : 'N/A'}</td>
-                                        </tr>
-                                        <tr>
-                                            <td><strong>{__('Context:', 'wpmudev-plugin-test')}</strong></td>
-                                            <td>{selectedScan.context ? selectedScan.context.charAt(0).toUpperCase() + selectedScan.context.slice(1) : 'Manual'}</td>
-                                        </tr>
-                                        <tr>
-                                            <td><strong>{__('Post Types:', 'wpmudev-plugin-test')}</strong></td>
-                                            <td>{selectedScan.post_types && selectedScan.post_types.length > 0 ? selectedScan.post_types.join(', ') : 'N/A'}</td>
-                                        </tr>
-                                        <tr>
-                                            <td><strong>{__('Total Posts:', 'wpmudev-plugin-test')}</strong></td>
-                                            <td>{selectedScan.total || 0}</td>
-                                        </tr>
-                                        <tr>
-                                            <td><strong>{__('Processed:', 'wpmudev-plugin-test')}</strong></td>
-                                            <td>{selectedScan.processed || 0}</td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-
-                            {selectedScan.health_score !== undefined && selectedScan.health_score !== null && (
-                                <div className="wpmudev-scan-details-section">
-                                    <h4>{__('Site Health Score', 'wpmudev-plugin-test')}</h4>
-                                    <div className="wpmudev-scan-details-health">
-                                        <div className="wpmudev-scan-details-health-value">
-                                            {typeof selectedScan.health_score === 'number' ? selectedScan.health_score.toFixed(1) : selectedScan.health_score}%
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-
-                            {selectedScan.metrics && (
-                                <div className="wpmudev-scan-details-section">
-                                    <h4>{__('Metrics', 'wpmudev-plugin-test')}</h4>
-                                    <table className="wpmudev-scan-details-table">
-                                        <tbody>
-                                            <tr>
-                                                <td><strong>{__('Published Posts:', 'wpmudev-plugin-test')}</strong></td>
-                                                <td>{selectedScan.metrics.published_posts || 0}</td>
-                                            </tr>
-                                            <tr>
-                                                <td><strong>{__('Drafts/Private:', 'wpmudev-plugin-test')}</strong></td>
-                                                <td>{selectedScan.metrics.draft_private_posts || 0}</td>
-                                            </tr>
-                                            <tr>
-                                                <td><strong>{__('Blank Content:', 'wpmudev-plugin-test')}</strong></td>
-                                                <td>{selectedScan.metrics.posts_with_blank_content || 0}</td>
-                                            </tr>
-                                            <tr>
-                                                <td><strong>{__('Missing Featured Images:', 'wpmudev-plugin-test')}</strong></td>
-                                                <td>{selectedScan.metrics.posts_missing_featured_image || 0}</td>
-                                            </tr>
-                                        </tbody>
-                                    </table>
-                                </div>
-                            )}
-                        </div>
-                    ) : (
-                        <div style={{ padding: '40px', textAlign: 'center' }}>
-                            <p>{__('No scan details available.', 'wpmudev-plugin-test')}</p>
-                        </div>
-                    )}
-                </Modal>
-            )}
         </div>
     );
 };

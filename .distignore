@@ -1,0 +1,62 @@
+# Distribution Ignore File
+# Files and directories listed here are excluded from the production build.
+# This serves as documentation and can be used by alternative build tools.
+
+# Development dependencies
+node_modules/
+vendor/
+
+# Source files (compiled versions are in assets/)
+src/
+
+# Test files
+tests/
+phpunit.xml.dist
+
+# Build configuration
+Gruntfile.js
+gulpfile.js
+webpack.config.js
+babel.config.js
+package.json
+package-lock.json
+composer.lock
+
+# Code quality tools
+phpcs.ruleset.xml
+.eslintrc
+.prettierrc
+.stylelintrc
+
+# Documentation (dev only)
+QUESTIONS.md
+THOUGHT.md
+BUILD_NOTES.md
+
+# Version control
+.git/
+.gitignore
+.gitattributes
+
+# IDE and editor files
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+.editorconfig
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Source maps
+*.map
+
+# Temporary files
+*.tmp
+*.log
+*.bak
+.afpDeleted*
+
+# Build output (the ZIP itself)
+build/

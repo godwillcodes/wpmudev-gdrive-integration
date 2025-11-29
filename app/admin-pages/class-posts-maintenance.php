@@ -136,6 +136,7 @@ class Posts_Maintenance extends Base {
 					'start'    => 'wpmudev/v1/posts-maintenance/start',
 					'status'   => 'wpmudev/v1/posts-maintenance/status',
 					'settings' => 'wpmudev/v1/posts-maintenance/settings',
+					'stream'   => 'wpmudev/v1/posts-maintenance/stream',
 				),
 				'postTypes' => $list,
 				'job'        => $service->format_job_for_response(),

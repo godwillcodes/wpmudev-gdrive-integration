@@ -25,7 +25,9 @@
 	"require-dev": {
 		"wp-coding-standards/wpcs": "^3.0",
 		"dealerdirect/phpcodesniffer-composer-installer": "^1.0",
-		"phpcompatibility/phpcompatibility-wp": "^2.1"
+		"phpcompatibility/phpcompatibility-wp": "^2.1",
+		"humbug/php-scoper": "^0.18",
+		"yoast/phpunit-polyfills": "^2.0"
 	},
 	"scripts": {
 		"post-install-cmd": [
@@ -33,9 +35,16 @@
 		],
 		"post-update-cmd": [
 			"Google_Task_Composer::cleanup"
+		],
+		"prefix-dependencies": [
+			"@php vendor/bin/php-scoper add-prefix --output-dir=vendor-prefixed --force",
+			"composer dump-autoload --working-dir=vendor-prefixed --classmap-authoritative"
+		],
+		"build-prefixed": [
+			"@prefix-dependencies"
 		]
 	},
 	"autoload": {
-        "classmap": ["core/", "app/"]
+		"classmap": ["core/", "app/"]
 	}
 }

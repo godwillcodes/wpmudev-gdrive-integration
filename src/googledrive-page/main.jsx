@@ -190,15 +190,6 @@ const WPMUDEV_DriveTest = () => {
                 : __('Authenticate to unlock Drive actions.', 'wpmudev-plugin-test'),
             state: isAuthenticated ? 'success' : 'neutral',
         },
-        {
-            id: 'files',
-            label: __('Files loaded', 'wpmudev-plugin-test'),
-            value: files.length,
-            description: files.length
-                ? __('Most recent file list is ready.', 'wpmudev-plugin-test')
-                : __('Load files to preview Drive items.', 'wpmudev-plugin-test'),
-            state: files.length ? 'neutral' : 'muted',
-        },
     ];
 
     const handleSaveCredentials = async () => {
@@ -1122,62 +1113,25 @@ const WPMUDEV_DriveTest = () => {
                                     
                                     {/* Pagination Controls */}
                                     {(hasMore || currentPage > 1) && (
-                                        <div className="wpmudev-drive-pagination" style={{ 
-                                            display: 'flex', 
-                                            justifyContent: 'space-between', 
-                                            alignItems: 'center',
-                                            marginTop: '20px',
-                                            padding: '16px',
-                                            borderTop: '1px solid #e5e7eb'
-                                        }}>
-                                            <div className="wpmudev-drive-pagination-info" style={{
-                                                fontFamily: "'DM Sans', sans-serif",
-                                                fontSize: '14px',
-                                                color: '#6b7280'
-                                            }}>
+                                        <div className="wpmudev-drive-pagination">
+                                            <div className="wpmudev-drive-pagination-info">
                                                 {__('Page', 'wpmudev-plugin-test')} {currentPage} • {files.length} {__('items', 'wpmudev-plugin-test')}
                                             </div>
-                                            <div className="wpmudev-drive-pagination-buttons" style={{
-                                                display: 'flex',
-                                                gap: '12px',
-                                                alignItems: 'center'
-                                            }}>
+                                            <div className="wpmudev-drive-pagination-buttons">
                                                 <Button
                                                     variant="secondary"
+                                                    className="wpmudev-drive-pagination-btn wpmudev-drive-pagination-btn--prev"
                                                     onClick={loadPreviousPage}
                                                     disabled={isLoading || currentPage === 1}
-                                                    style={{
-                                                        backgroundColor: currentPage === 1 ? '#f3f4f6' : 'transparent',
-                                                        border: '2px solid #000000',
-                                                        color: currentPage === 1 ? '#9ca3af' : '#000000',
-                                                        fontFamily: "'DM Sans', sans-serif",
-                                                        fontWeight: 600,
-                                                        padding: '8px 16px',
-                                                        borderRadius: '6px',
-                                                        cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
-                                                        display: 'flex',
-                                                        alignItems: 'center'
-                                                    }}
                                                 >
                                                     <PreviousIcon />
                                                     {__('Previous', 'wpmudev-plugin-test')}
                                                 </Button>
                                                 <Button
                                                     variant="primary"
+                                                    className="wpmudev-drive-pagination-btn wpmudev-drive-pagination-btn--next"
                                                     onClick={loadNextPage}
                                                     disabled={isLoading || !hasMore}
-                                                    style={{
-                                                        backgroundColor: !hasMore ? '#666666' : '#000000',
-                                                        border: '2px solid ' + (!hasMore ? '#666666' : '#000000'),
-                                                        color: '#ffffff',
-                                                        fontFamily: "'DM Sans', sans-serif",
-                                                        fontWeight: 600,
-                                                        padding: '8px 16px',
-                                                        borderRadius: '6px',
-                                                        cursor: !hasMore ? 'not-allowed' : 'pointer',
-                                                        display: 'flex',
-                                                        alignItems: 'center'
-                                                    }}
                                                 >
                                                     {__('Next', 'wpmudev-plugin-test')}
                                                     <NextIcon />
