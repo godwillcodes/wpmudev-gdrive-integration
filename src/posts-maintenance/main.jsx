@@ -388,51 +388,49 @@ const WPMUDEV_Posts_Maintenance = () => {
             </div>
 
             {/* Tabs */}
-            <div className="wpmudev-tabs" style={{ marginBottom: '24px', borderBottom: '1px solid rgba(100, 116, 139, 0.5)' }}>
+            <div className="wpmudev-tabs">
                 <button
                     className={`wpmudev-tab ${activeTab === 'scan' ? 'active' : ''}`}
                     onClick={() => setActiveTab('scan')}
-                    style={{
-                        padding: '12px 24px',
-                        background: 'none',
-                        border: 'none',
-                        borderBottom: activeTab === 'scan' ? '2px solid #000' : '2px solid transparent',
-                        cursor: 'pointer',
-                        fontFamily: "'DM Sans', sans-serif",
-                        fontSize: '14px',
-                        fontWeight: activeTab === 'scan' ? '600' : '400',
-                        color: activeTab === 'scan' ? '#000' : '#64748b',
-                    }}
                 >
                     {__('Scan', 'wpmudev-plugin-test')}
                 </button>
                 <button
                     className={`wpmudev-tab ${activeTab === 'settings' ? 'active' : ''}`}
                     onClick={() => setActiveTab('settings')}
-                    style={{
-                        padding: '12px 24px',
-                        background: 'none',
-                        border: 'none',
-                        borderBottom: activeTab === 'settings' ? '2px solid #000' : '2px solid transparent',
-                        cursor: 'pointer',
-                        fontFamily: "'DM Sans', sans-serif",
-                        fontSize: '14px',
-                        fontWeight: activeTab === 'settings' ? '600' : '400',
-                        color: activeTab === 'settings' ? '#000' : '#64748b',
-                    }}
                 >
                     {__('Settings', 'wpmudev-plugin-test')}
                 </button>
             </div>
 
             {notice.message && (
-                <Notice
-                    status={notice.type}
-                    isDismissible
-                    onRemove={() => setNotice({ message: '', type: '' })}
-                >
-                    {notice.message}
-                </Notice>
+                <div className={`wpmudev-notice wpmudev-notice--${notice.type}`}>
+                    <div className="wpmudev-notice-content">
+                        <div className="wpmudev-notice-icon">
+                            {notice.type === 'success' ? (
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" style={{ width: '20px', height: '20px' }}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                            ) : (
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" style={{ width: '20px', height: '20px' }}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+                                </svg>
+                            )}
+                        </div>
+                        <div className="wpmudev-notice-message">
+                            {notice.message}
+                        </div>
+                        <button
+                            className="wpmudev-notice-dismiss"
+                            onClick={() => setNotice({ message: '', type: '' })}
+                            aria-label={__('Dismiss', 'wpmudev-plugin-test')}
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" style={{ width: '16px', height: '16px' }}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
             )}
 
             {activeTab === 'settings' ? (

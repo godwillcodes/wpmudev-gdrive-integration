@@ -219,7 +219,7 @@ h1, h2, h3, h4, h5, h6,
 .wpmudev-drive-grid--actions {
     grid-template-columns: 1fr;
     align-items: stretch;
-    gap: 24px;
+    gap: 32px;
 }
 
 .wpmudev-drive-panel {
@@ -241,10 +241,11 @@ h1, h2, h3, h4, h5, h6,
         .sui-box-title {
             font-family: 'DM Sans', sans-serif;
             font-weight: 600;
-            font-size: 18px;
+            font-size: 22px;
             letter-spacing: -0.01em;
             color: #1e293b;
             margin: 0;
+            text-align: left;
         }
 
         .sui-description {
@@ -252,6 +253,7 @@ h1, h2, h3, h4, h5, h6,
             font-family: 'DM Sans', sans-serif;
             font-size: 14px;
             color: #6b7280;
+            text-align: left;
         }
     }
 
@@ -337,9 +339,10 @@ h1, h2, h3, h4, h5, h6,
             margin: 0;
             font-family: 'DM Sans', sans-serif;
             font-weight: 600;
-            font-size: 20px;
+            font-size: 22px;
             color: #000000;
             letter-spacing: -0.01em;
+            text-align: left;
         }
 
         .sui-description {
@@ -348,6 +351,7 @@ h1, h2, h3, h4, h5, h6,
             font-size: 14px;
             color: #64748b;
             line-height: 1.6;
+            text-align: left;
         }
     }
 
@@ -529,27 +533,46 @@ h1, h2, h3, h4, h5, h6,
 // Files Panel Actions
 .wpmudev-drive-files-actions {
     display: flex;
-    gap: 12px;
     align-items: center;
-    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 16px;
+    width: 100%;
 
-    .wpmudev-drive-connection-btn,
-    .wpmudev-drive-disconnect-btn {
+    .wpmudev-drive-actions-left {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+
+    .wpmudev-drive-actions-right {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+    }
+
+    .wpmudev-drive-connection-btn {
         background-color: #ffffff !important;
-        border: 1px solid #000000 !important;
+        border: 2px solid #000000 !important;
         color: #000000 !important;
         border-radius: 0 !important;
         font-family: 'DM Sans', sans-serif;
         font-weight: 600;
         font-size: 14px;
-        padding: 8px 16px;
-        min-height: 36px;
+        padding: 10px 20px;
+        min-height: 44px;
         transition: all 0.2s ease-in-out;
         letter-spacing: 0.01em;
 
         &:hover:not(:disabled) {
             background-color: #000000 !important;
             color: #ffffff !important;
+            border-color: #000000 !important;
+        }
+
+        &:focus:not(:disabled) {
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.1);
         }
 
         &:disabled {
@@ -559,16 +582,48 @@ h1, h2, h3, h4, h5, h6,
     }
 
     .wpmudev-drive-disconnect-btn {
+        background-color: #ffffff !important;
+        border: 2px solid #dc2626 !important;
+        color: #dc2626 !important;
+        border-radius: 0 !important;
+        font-family: 'DM Sans', sans-serif;
+        font-weight: 600;
+        font-size: 14px;
+        padding: 10px 20px;
+        min-height: 44px;
+        transition: all 0.2s ease-in-out;
+        letter-spacing: 0.01em;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+
         &:hover:not(:disabled) {
-            background-color: #000000 !important;
+            background-color: #dc2626 !important;
             color: #ffffff !important;
+            border-color: #dc2626 !important;
+        }
+
+        &:focus:not(:disabled) {
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.2);
+        }
+
+        &:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
         }
     }
 
     @media (max-width: 768px) {
         flex-direction: column;
-        width: 100%;
-        gap: 8px;
+        align-items: stretch;
+        gap: 12px;
+
+        .wpmudev-drive-actions-left,
+        .wpmudev-drive-actions-right {
+            width: 100%;
+            flex-direction: column;
+        }
 
         .wpmudev-drive-connection-btn,
         .wpmudev-drive-disconnect-btn {
@@ -958,10 +1013,12 @@ button[type="button"].sui-button-ghost {
 // File Upload Section - Drag and Drop
 .wpmudev-drive-dropzone {
     min-height: 200px;
+    width: 100%;
     border: 2px dashed rgba(100, 116, 139, 0.4);
     border-radius: 0;
     background-color: #ffffff;
     transition: all 0.3s ease;
+    box-sizing: border-box;
     padding: 32px;
     display: flex;
     align-items: center;

@@ -11,6 +11,12 @@ const RefreshIcon = () => (
     </svg>
 );
 
+const DisconnectIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" style={{ width: '16px', height: '16px', marginRight: '6px' }}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
+    </svg>
+);
+
 const DownloadIcon = () => (
     <svg width="16" height="16" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: '6px' }}>
         <path d="M3 15L3 16C3 17.1046 3.89543 18 5 18L15 18C16.1046 18 17 17.1046 17 16L17 15M13 10L10 13M10 13L7 10M10 13L10 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
@@ -996,34 +1002,43 @@ const WPMUDEV_DriveTest = () => {
                                 {__('Your drive files', 'wpmudev-plugin-test')}
                             </h2>
                             <div className="sui-actions-right wpmudev-drive-files-actions">
-                                <Button
-                                    variant="secondary"
-                                    className="wpmudev-drive-connection-btn"
-                                    onClick={() => setShowCredentials(true)}
-                                    disabled={isLoading}
-                                >
-                                    {__('Change credentials', 'wpmudev-plugin-test')}
-                                </Button>
-                                <Button
-                                    variant="secondary"
-                                    className="wpmudev-drive-disconnect-btn"
-                                    onClick={handleDisconnect}
-                                    disabled={isLoading}
-                                >
-                                    {isLoading ? <Spinner /> : __('Disconnect', 'wpmudev-plugin-test')}
-                                </Button>
-                                <Button
-                                    variant="secondary"
-                                    onClick={loadFiles}
-                                    disabled={isLoading}
-                                >
-                                    {isLoading ? <Spinner /> : (
-                                        <>
-                                            <RefreshIcon />
-                                            {__('Refresh files', 'wpmudev-plugin-test')}
-                                        </>
-                                    )}
-                                </Button>
+                                <div className="wpmudev-drive-actions-left">
+                                    <Button
+                                        variant="secondary"
+                                        className="wpmudev-drive-connection-btn"
+                                        onClick={() => setShowCredentials(true)}
+                                        disabled={isLoading}
+                                    >
+                                        {__('Change credentials', 'wpmudev-plugin-test')}
+                                    </Button>
+                                    <Button
+                                        variant="secondary"
+                                        className="wpmudev-drive-disconnect-btn"
+                                        onClick={handleDisconnect}
+                                        disabled={isLoading}
+                                    >
+                                        {isLoading ? <Spinner /> : (
+                                            <>
+                                                <DisconnectIcon />
+                                                {__('Disconnect', 'wpmudev-plugin-test')}
+                                            </>
+                                        )}
+                                    </Button>
+                                </div>
+                                <div className="wpmudev-drive-actions-right">
+                                    <Button
+                                        variant="secondary"
+                                        onClick={loadFiles}
+                                        disabled={isLoading}
+                                    >
+                                        {isLoading ? <Spinner /> : (
+                                            <>
+                                                <RefreshIcon />
+                                                {__('Refresh files', 'wpmudev-plugin-test')}
+                                            </>
+                                        )}
+                                    </Button>
+                                </div>
                             </div>
                         </div>
                         <div className="sui-box-body">
